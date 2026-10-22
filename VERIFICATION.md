@@ -41,6 +41,13 @@ devices. The original Play Store app remained installed with its data intact.
 
 ## Remaining verification and scope
 
+The already-active hotspot fix builds successfully and has a device regression
+check in `--hotspot`: a second enable request must return the same state and,
+when available, the same credentials. The helper checks for an active AP before
+starting; code 18 (duplicate request) waits up to ten seconds for an active AP
+instead of reporting a Shizuku/carrier failure. This fix has not yet been run on
+a phone because no ADB device was connected during its validation.
+
 Actual Mac Wi-Fi association and an internet request through that Wi-Fi connection
 still require macOS Location approval. The tested probe validates tethering,
 cellular upstream and credential exchange while leaving Mac Wi-Fi unchanged.

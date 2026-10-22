@@ -90,6 +90,15 @@ public final class DeviceChecks extends Instrumentation {
                     sendStatus(0, progress);
                     if ("active".equals(state) || "configure".equals(state)) Thread.sleep(10000);
                     result.putBoolean("hotspotStarted", "active".equals(state) || "configure".equals(state));
+                    require("active".equals(state) || "configure".equals(state), "Hotspot start");
+                    Bundle reused = operation(helper[0], true);
+                    require(state.equals(reused.getString("state", "")), "Already-active hotspot reuse");
+                    if ("active".equals(state)) {
+                        require(enabled.getString("ssid").equals(reused.getString("ssid"))
+                                && enabled.getString("passphrase").equals(reused.getString("passphrase"))
+                                && reused.getBoolean("internet", false), "Reused hotspot credentials");
+                    }
+                    result.putBoolean("hotspotReused", true);
                 } finally {
                     if (helper[0] != null) {
                         Bundle stopped = operation(helper[0], false);

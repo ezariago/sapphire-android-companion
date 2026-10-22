@@ -13,4 +13,5 @@ SAPPHIRE_DEVICE_RESULT="$(adb shell am instrument --user 0 -w -e hotspot "$SAPPH
 printf '%s\n' "$SAPPHIRE_DEVICE_RESULT"
 if [[ "$SAPPHIRE_DEVICE_RESULT" != *'INSTRUMENTATION_RESULT: result=passed'* ]]; then exit 1; fi
 if [[ "$SAPPHIRE_HOTSPOT_TEST" == true && "$SAPPHIRE_DEVICE_RESULT" != *'INSTRUMENTATION_RESULT: hotspotStarted=true'* ]]; then exit 1; fi
+if [[ "$SAPPHIRE_HOTSPOT_TEST" == true && "$SAPPHIRE_DEVICE_RESULT" != *'INSTRUMENTATION_RESULT: hotspotReused=true'* ]]; then exit 1; fi
 if [[ "$SAPPHIRE_HOTSPOT_TEST" == true && "$SAPPHIRE_DEVICE_RESULT" != *'INSTRUMENTATION_RESULT: hotspotStopState=stopped'* ]]; then exit 1; fi

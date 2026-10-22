@@ -18,6 +18,8 @@ import rikka.shizuku.*;
  * A narrow, signature-protected broker. No shell commands or arbitrary IPC.
  */
 public final class HotspotService extends Service {
+    private static final int TETHER_ERROR_DUPLICATE_REQUEST = 18;
+    private static final int WIFI_AP_STATE_ENABLED = 13;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicBoolean busy = new AtomicBoolean();
     private final IHotspotHelper.Stub binder = new IHotspotHelper.Stub() {
@@ -44,6 +46,15 @@ public final class HotspotService extends Service {
                     if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED)
                         throw new SecurityException("setup");
                     HiddenApiBypass.addHiddenApiExemptions("Landroid/net/");
+                    // Connecting must also work when the user already enabled tethering.
+                    if (enabled && isHotspotActive()) {
+                        if (completed.compareAndSet(false, true)) {
+                            main.removeCallbacks(timeout);
+                            busy.set(false);
+                            credentials(callback);
+                        }
+                        return;
+                    }
                     Object connector = service("tethering", "android.net.ITetheringConnector$Stub");
                     Class<?> listenerType = Class.forName("android.net.IIntResultListener");
                     Binder listenerBinder = new Binder() {
@@ -57,6 +68,12 @@ public final class HotspotService extends Service {
                             if (code == 1) {
                                 data.enforceInterface("android.net.IIntResultListener");
                                 int status = data.readInt();
+                                if (enabled && status == TETHER_ERROR_DUPLICATE_REQUEST) {
+                                    // Another request may still be bringing up the AP. Do not
+                                    // treat stored credentials alone as proof it is running.
+                                    new Thread(() -> reuseHotspot(callback, completed, timeout), "SapphireHotspotReuse").start();
+                                    return true;
+                                }
                                 if (completed.compareAndSet(false, true)) {
                                     main.removeCallbacks(timeout);
                                     busy.set(false);
@@ -97,6 +114,39 @@ public final class HotspotService extends Service {
             }, "SapphireHotspot").start();
         }
     };
+
+    private static boolean isHotspotActive() {
+        try {
+            Object wifi = service("wifi", "android.net.wifi.IWifiManager$Stub");
+            return (Integer) Class.forName("android.net.wifi.IWifiManager")
+                    .getDeclaredMethod("getWifiApEnabledState").invoke(wifi) == WIFI_AP_STATE_ENABLED;
+        } catch (Exception e) {
+            // If this OEM cannot expose state, let the normal start request decide.
+            return false;
+        }
+    }
+
+    private void reuseHotspot(IHotspotCallback callback, AtomicBoolean completed, Runnable timeout) {
+        long deadline = SystemClock.elapsedRealtime() + 10000;
+        boolean active;
+        do {
+            if (completed.get()) return;
+            active = isHotspotActive();
+            if (active) break;
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        } while (SystemClock.elapsedRealtime() < deadline);
+        if (completed.compareAndSet(false, true)) {
+            main.removeCallbacks(timeout);
+            busy.set(false);
+            if (active) credentials(callback);
+            else reply(callback, "error", "Android already has a hotspot request pending, but its hotspot is not active yet. Wait for it to turn on in Android hotspot settings, then try again.");
+        }
+    }
 
     private static Object service(String name, String stub) throws Exception {
         IBinder remote = SystemServiceHelper.getSystemService(name);

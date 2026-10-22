@@ -72,7 +72,9 @@ connection to this app. The original Android app and its data remain installed.
    **Disconnect hotspot** also asks the helper to stop tethering.
 
 The helper reads the existing Android hotspot configuration; it does not change
-its name or password. For this initial implementation, select **WPA2** security in
+its name or password. If the hotspot is already on, the helper reuses it. Android
+duplicate-start responses are checked against the actual hotspot state before
+returning credentials. For this initial implementation, select **WPA2** security in
 Android hotspot settings so automatic Mac joining is supported. Mobile data,
 carrier tethering entitlement and coverage still determine internet availability.
 
@@ -128,7 +130,8 @@ launcher for developer testing, but matching-code approval always stays in the U
 ```
 
 The device test requires the test APK, a USB-debugging-authorized phone and, for
-the optional hotspot check, an installed/authorized helper. It reports only
+the optional hotspot check, an installed/authorized helper. The hotspot check also
+requests a second start while the hotspot is on and verifies credential reuse. It reports only
 readiness/status booleans, never SSIDs, Wi-Fi passwords or pairing keys. It does
 not pair the Mac or change its Wi-Fi network. `--hotspot` should be used when the
 phone's hotspot is initially off, since cleanup stops tethering.
