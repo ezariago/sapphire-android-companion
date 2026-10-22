@@ -1,7 +1,7 @@
 # Sapphire Companion
 
 An independent, editable Android companion for this checkout's reconstructed
-Sapphire Mac integration. The Play Store APK is not modified, decompiled code is
+[Sapphire Mac integration](https://github.com/ezariago/sapphire-foss). The Play Store APK is not modified, decompiled code is
 not bundled, and its package/data/signature are not reused.
 
 This first version provides authenticated Bluetooth pairing/reconnection, phone
@@ -12,25 +12,23 @@ sharing are not implemented.
 
 ## Build
 
-Install JDK 17 and Android SDK platform 36/build tools, then from the Sapphire
-repository root run:
+Install JDK 17 and Android SDK platform 36/build tools, then run:
 
 ```sh
-./scripts/build-android-companion.sh
+./build.sh
 ```
 
 On macOS the script finds JDK 17 using `java_home` and defaults `ANDROID_HOME` to
 `~/Library/Android/sdk`. Set `JAVA_HOME`/`ANDROID_HOME` for other installations.
-You can also open this `AndroidCompanion` folder in Android Studio. The source ZIP
-is self-contained: inside its `AndroidCompanion` folder run `./build.sh`; the two
-APKs are written to `build/apks/`. Its test vectors are included, so the Mac
-repository is not required to build the standalone Android project.
+Open this repository in Android Studio, or run `./build.sh` at its root. Both
+apps remain in one Gradle project with a shared `:ipc` module. Test vectors are
+included; the Mac repository is not required to build either Android app.
 
 The script uses the pinned Gradle wrapper, runs JVM protocol tests against the
 same independent crypto fixture as the Mac, and produces:
 
-- `build/android/SapphireCompanion.apk` — `dev.sapphire.companion`, target SDK 36.
-- `build/android/SapphireHotspotHelper.apk` —
+- `build/apks/SapphireCompanion.apk` — `dev.sapphire.companion`, target SDK 36.
+- `build/apks/SapphireHotspotHelper.apk` —
   `dev.sapphire.companion.hotspothelper`, target SDK 28.
 
 Both debug APKs use the same local Android debug signing key. Preserve that key
@@ -40,8 +38,8 @@ for both apps; do not publish a private signing key or build secrets.
 ## Install and connect
 
 ```sh
-adb install --user 0 -r build/android/SapphireHotspotHelper.apk
-adb install --user 0 -r build/android/SapphireCompanion.apk
+adb install --user 0 -r build/apks/SapphireHotspotHelper.apk
+adb install --user 0 -r build/apks/SapphireCompanion.apk
 ```
 
 These packages coexist with `com.shariq.sapphire`. The new companion uses its own
@@ -122,8 +120,8 @@ launcher for developer testing, but matching-code approval always stays in the U
 ## Tests
 
 ```sh
-./scripts/build-android-companion.sh
-./scripts/test-phone-reconstruction.sh
+./build.sh
+# In the separate Mac checkout: ./scripts/test-phone-reconstruction.sh
 ./scripts/test-android-companion-device.sh
 # Explicitly turns the real phone hotspot on for ten seconds, then stops it:
 ./scripts/test-android-companion-device.sh --hotspot
@@ -134,6 +132,9 @@ the optional hotspot check, an installed/authorized helper. It reports only
 readiness/status booleans, never SSIDs, Wi-Fi passwords or pairing keys. It does
 not pair the Mac or change its Wi-Fi network. `--hotspot` should be used when the
 phone's hotspot is initially off, since cleanup stops tethering.
+
+The Mac app lives in [sapphire-foss](https://github.com/ezariago/sapphire-foss).
+This repository is licensed under [AGPL-3.0](LICENSE); see [third-party notices](THIRD-PARTY.md).
 
 Device-tested findings are recorded in `VERIFICATION.md`.
 
