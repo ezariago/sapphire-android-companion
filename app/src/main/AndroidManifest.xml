@@ -15,6 +15,9 @@
     <application android:label="Sapphire Companion" android:theme="@style/AppTheme" android:allowBackup="false" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:launchMode="singleTop" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity>
         <activity android:name=".ScannerActivity" android:exported="false" />
+        <service android:name=".NotificationMirror" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:label="Sapphire notification mirroring">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <service android:name=".LinkService" android:exported="false" android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

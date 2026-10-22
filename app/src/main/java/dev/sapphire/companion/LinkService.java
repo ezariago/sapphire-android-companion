@@ -28,6 +28,29 @@ public final class LinkService extends Service {
     final Handler main = new Handler(Looper.getMainLooper());
     String status = "Starting Bluetooth…", code = "", macName = "", hotspotStatus = "";
     boolean secure, pairingMode, localConfirmed;
+    boolean notificationSubscribed, notificationGeneral, notificationSystem;
+    private final NotificationEvents notificationQueue = new NotificationEvents();
+    private final Runnable flushNotifications = new Runnable() {
+        public void run() {
+            if (!secure) { notificationQueue.clear(); return; }
+            if (!notificationQueue.isEmpty() && outgoing.size() < 32) {
+                JSONObject event = notificationQueue.poll();
+                send(event.optString("type"), event.optJSONObject("payload"), false);
+            }
+            if (!notificationQueue.isEmpty()) main.postDelayed(this, 100);
+        }
+    };
+
+    void notificationEvent(String type, JSONObject payload) {
+        if (!secure || !notificationSubscribed) return;
+        if (!notificationQueue.offer(type, payload)) {
+            // Reconnect and take a fresh snapshot rather than silently losing a removal.
+            protocolFailure();
+            return;
+        }
+        main.removeCallbacks(flushNotifications);
+        main.postDelayed(flushNotifications, 100);
+    }
     private BluetoothManager manager;
     private BluetoothGattServer server;
     private BluetoothLeAdvertiser advertiser;
@@ -241,6 +264,10 @@ public final class LinkService extends Service {
     private void resetConnection() {
         epoch++;
         secure = false;
+        notificationSubscribed = false;
+        notificationQueue.clear();
+        main.removeCallbacks(flushNotifications);
+        if (NotificationMirror.instance != null) NotificationMirror.instance.configure(false, false, false);
         subscribed = false;
         session = null;
         mtu = 23;
@@ -361,6 +388,20 @@ public final class LinkService extends Service {
             case "status.request":
             case "battery.request":
                 sendDeviceStatus(true);
+                break;
+            case "notif.subscribe":
+                notificationSubscribed = p.optBoolean("enabled");
+                notificationGeneral = p.optBoolean("includeGeneral");
+                notificationSystem = p.optBoolean("includeSystem");
+                notificationQueue.clear();
+                if (NotificationMirror.instance != null)
+                    NotificationMirror.instance.configure(notificationSubscribed, notificationGeneral, notificationSystem);
+                else notificationEvent("notif.reset", new JSONObject());
+                break;
+            case "notif.dismiss":
+            case "notif.action":
+                if (notificationSubscribed && NotificationMirror.instance != null)
+                    NotificationMirror.instance.command(type, p);
                 break;
             case "media.request":
                 send("media.state", object("isPlaying", false, "title", "", "artist", "", "durationMs", 0, "positionMs", 0), false);
@@ -642,6 +683,9 @@ public final class LinkService extends Service {
             if (server != null) server.close();
         } catch (Exception ignored) {
         }
+        secure = false;
+        notificationSubscribed = false;
+        if (NotificationMirror.instance != null) NotificationMirror.instance.configure(false, false, false);
         instance = null;
         observers.clear();
         super.onDestroy();

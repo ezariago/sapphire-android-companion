@@ -6,9 +6,9 @@ not bundled, and its package/data/signature are not reused.
 
 This first version provides authenticated Bluetooth pairing/reconnection, phone
 battery status, automatic Mac → phone text clipboard delivery, explicit phone →
-Mac text clipboard delivery and **real Android internet hotspot start/stop**.
-Media controls, notification mirroring, files, calls, camera streaming and screen
-sharing are not implemented.
+Mac text clipboard delivery, **real Android internet hotspot start/stop**, and
+opt-in notification mirroring with dismissal and supported reply/action buttons.
+Media controls, files, calls, camera streaming and screen sharing are not implemented.
 
 ## Build
 
@@ -78,6 +78,39 @@ returning credentials. For this initial implementation, select **WPA2** security
 Android hotspot settings so automatic Mac joining is supported. Mobile data,
 carrier tethering entitlement and coverage still determine internet availability.
 
+## Notification mirroring
+
+1. Enable **Share phone notifications with paired Mac** in the companion.
+2. Tap **Allow notification access** and enable Sapphire in Android Settings.
+   This grants access to other apps' notification content; it is separate from
+   permission to show the companion's own connection notification.
+3. Connect to the updated Mac app. Its Phone / Android settings show the active
+   notification list and filters. New notifications appear in the notch;
+   optional macOS banners require Mac notification permission.
+4. Use **Dismiss on phone**, an app action, or **Reply** on Mac. Replies/actions
+   require the phone to be unlocked and the notification revision still current.
+
+Sharing defaults to off and uses only the authenticated encrypted Bluetooth
+connection. Up to 30 active notifications synchronize on reconnect without
+re-alerting for old entries. Secret, ongoing, group-summary, other-user/work-profile
+and Sapphire service notifications are excluded. Low-priority and Android system
+notifications are excluded unless enabled in Mac settings. Android/OEM sensitive
+content redaction is respected. No notification history is persisted by the
+companion; optional Mac banners are retained by macOS Notification Center.
+Images, icons, attachments and opening phone apps by clicking a Mac banner are
+not included in this first implementation. Turn off sharing or revoke Android
+notification access to clear the Mac list.
+
+Debug builds include a synthetic test activity, absent from release builds:
+
+```sh
+adb shell am start -n dev.sapphire.companion/.NotificationFixtureActivity
+```
+
+Its **Test action** and replies stay inside the fixture app. A reply of
+`Sapphire reply fixture` produces a success flag; no actual message is sent.
+See [VERIFICATION.md](VERIFICATION.md) for tested scope.
+
 ## Why two apps, and why Shizuku?
 
 The helper is separate and targets SDK 28, but **an old target alone is not enough
@@ -100,6 +133,8 @@ for the tested Shizuku setup; OEM/OS updates may change hidden API compatibility
 | `app/.../MainActivity.java` | Phone UI, permission requests, pairing confirmation, clipboard controls |
 | `app/.../ScannerActivity.java` | Offline QR scanning using ZXing |
 | `app/.../LinkService.java` | BLE peripheral/GATT, pairing state, protocol dispatch, foreground notification |
+| `app/.../NotificationMirror.java` | Opt-in notification access, bounded snapshots/events and local action/reply dispatch |
+| `app/.../NotificationPolicy.java`, `NotificationEvents.java` | Notification filtering/text limits and coalesced event ordering |
 | `app/.../LinkEnvelope.java` | Mac-compatible JSON envelope fields and timestamps |
 | `app/.../LinkCrypto.java` | P-256 ECDH, HKDF/SAS, directional ChaCha20-Poly1305 and replay window |
 | `app/.../GattFrames.java` | Bounded BLE fragmentation/reassembly |

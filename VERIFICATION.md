@@ -83,3 +83,25 @@ signature verification and matched the tested executable.
 - The formerly empty notch detail route now displays device status and hotspot
   Connect/Disconnect controls. Native SwiftUI previews of the actual panel source
   were rendered in connected, connecting, hotspot-connected and offline states.
+
+
+## Notification mirroring implementation (2026-10-22)
+
+- Implemented explicit opt-in sharing and the Android notification-access settings link.
+- Implemented encrypted posts, updates, removals, quiet reconnect snapshots,
+  dismissal and supported free-form replies/actions, with stale revision checks.
+- Added JVM tests for filtering, UTF-8 bounds and BLE event queue ordering/capacity.
+- Added debug-only `NotificationFixtureActivity`; replies/actions remain local
+  and record only test-success booleans. The fixture is absent from release builds.
+- Android debug and release builds and all 14 JVM tests pass. The release APK
+  manifest excludes the debug fixture. Mac protocol tests pass all 92 checks.
+- With notification access granted by the user on the Galaxy S24 Ultra, the
+  encrypted Mac/Android link passed quiet initial sync, posts, updates, actions,
+  RemoteInput replies, Mac dismissal, phone removal, disconnect clearing and
+  quiet resynchronization after simulated sleep/wake. The fixture receiver
+  independently confirmed the action and exact synthetic reply; no real message
+  was sent, and the fixture was removed afterward.
+- Ordinary third-party app actions/replies, permission revocation, locked-phone
+  behavior, optional macOS banners and physical sleep/radio recovery still need
+  separate verification. Native Mac UI automation became unavailable; later
+  checks used production transport/bridge state and the Android receiver.

@@ -13,7 +13,7 @@ import android.widget.*;
 import java.util.*;
 
 public final class MainActivity extends Activity {
-    private TextView status, paired, code, hotspotStatus;
+    private TextView status, paired, code, hotspotStatus, notificationStatus;
     private Button confirm;
     private EditText qr;
     private String permissionAction;
@@ -83,6 +83,15 @@ public final class MainActivity extends Activity {
                 LinkService.instance.sendClipboardFromActivity();
             else Toast.makeText(this, "Connect to your Mac first.", Toast.LENGTH_SHORT).show();
         });
+        title(content, "Notifications", 22);
+        Switch mirror = new Switch(this);
+        mirror.setText("Share phone notifications with paired Mac");
+        mirror.setChecked(getSharedPreferences("settings", 0).getBoolean("notifications", false));
+        mirror.setOnCheckedChangeListener((v, value) -> getSharedPreferences("settings", 0).edit().putBoolean("notifications", value).apply());
+        content.addView(mirror);
+        title(content, "Allow notification access below, then enable sharing. Notification text and supported actions travel only over your encrypted Mac connection. Ongoing, secret, work-profile and Sapphire notifications are excluded. Android may hide sensitive content. Unlock your phone before using replies or actions.", 14);
+        notificationStatus = title(content, "", 14);
+        button(content, "Allow notification access", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         title(content, "Mobile hotspot", 22);
         title(content, "Your paired Mac can start the phone’s real internet hotspot through Sapphire Hotspot Helper. On this Android version, the helper needs your Shizuku authorization. Mobile data and carrier support are required.", 14);
         Switch hotspot = new Switch(this);
@@ -105,7 +114,7 @@ public final class MainActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS));
             }
         });
-        title(content, "This first version includes Bluetooth pairing, battery status, text clipboard and hotspot control. Media controls, notifications, files and screen sharing are not included yet.", 14);
+        title(content, "This first version includes Bluetooth pairing, battery status, text clipboard and hotspot control. Notification mirroring supports dismiss, reply and app actions. Media controls, files and screen sharing are not included yet.", 14);
         button(content, "Stop connection", () -> send("stop", null));
         button(content, "Forget this Mac", () -> new AlertDialog.Builder(this).setMessage("Remove this companion’s saved Mac pairing?").setNegativeButton("Cancel", null).setPositiveButton("Forget", (d, w) -> send("forget", null)).show());
         ScrollView scroll = new ScrollView(this);
@@ -156,6 +165,9 @@ public final class MainActivity extends Activity {
         code.setText(service == null ? "" : service.code);
         confirm.setVisibility(service != null && !service.code.isEmpty() && !service.localConfirmed ? View.VISIBLE : View.GONE);
         hotspotStatus.setText(service == null ? "" : service.hotspotStatus);
+        notificationStatus.setText(NotificationMirror.enabled(this)
+                ? (NotificationMirror.instance != null ? "Notification access ready. Connect to your Mac to mirror notifications." : "Waiting for Android notification access to connect…")
+                : "Notification sharing is off or Android notification access has not been granted.");
     }
 
     private void ensureConnection(String action) {
