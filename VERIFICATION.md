@@ -56,8 +56,8 @@ The offline camera scanner compiles; pairing was device-tested through public QR
 text entry rather than physically scanning with the camera.
 
 This is an independent first version, not recovered original private source.
-Media controls, notification mirroring, files, calls, camera streaming and screen
-sharing remain unimplemented. Android background clipboard rules still limit
+Files, calls, camera streaming and screen sharing remain unimplemented.
+Notification mirroring, media controls and web-link handoff are described below. Android background clipboard rules still limit
 phone → Mac automation, so that direction uses an explicit send action.
 
 
@@ -105,3 +105,40 @@ signature verification and matched the tested executable.
   behavior, optional macOS banners and physical sleep/radio recovery still need
   separate verification. Native Mac UI automation became unavailable; later
   checks used production transport/bridge state and the Android receiver.
+
+
+## Media, web-link handoff and radio recovery (2026-10-24)
+
+The connected Galaxy S24 Ultra passed these tests over the authenticated encrypted
+Mac/Android link, with existing pairing records retained:
+
+- A silent debug MediaSession provided fixed synthetic metadata. Mac commands
+  exercised play, pause, next, previous, exact 42,000 ms seek, toggle and stop.
+  Turning sharing off cleared Mac media and rejected controls; reenabling restored
+  the session, and releasing it cleared the Mac. No real audio played.
+- Disabled link receiving returned a failure to the Mac. Enabling receiving allowed
+  a notification for the fixed public example.com URL. Its PendingIntent opened
+  the companion's review Activity, with browser opening left to explicit user
+  choice. The production ACTION_SEND review screen was opened with the public
+  test URL; confirming **Send to paired Mac** delivered it to Mac settings.
+  No browser opened.
+- Mac-only app muting removed the fixture locally while the phone independently
+  retained it, suppressed updates and reconnect snapshots, and restored it quietly
+  after allowing the app again. Normal notification sharing stayed off; an
+  explicit debug-only opt-in allowed just the fixed synthetic fixture.
+- Two physical Android Bluetooth off/on cycles cleared the old Mac session and
+  automatically regained an authenticated connection, without app restart or
+  pairing approval. Retired GATT callbacks are rejected by generation. Bluetooth
+  was left on and test sharing preferences were restored.
+
+All 17 JVM tests and the Mac's 126 protocol checks pass. Both debug APKs and both
+release targets build. The helper's legacy target is intentionally sideloaded,
+and its already-authorized Shizuku hidden Binder call has a narrow lint exception;
+all other release lint checks remain enabled. Release manifest inspection excludes
+NotificationFixtureActivity, MediaFixtureActivity and HandoffFixtureActivity.
+
+Run the Mac repository's scripts with an opt-in diagnostic PID:
+`test-phone-media.py`, `test-phone-handoff.py`, `test-phone-muting.py` and
+`test-phone-radio.py`. The radio script deliberately toggles phone Bluetooth.
+Third-party player compatibility, real audio behavior and full browser navigation
+remain outside the silent fixture checks. No calls or messages were sent.

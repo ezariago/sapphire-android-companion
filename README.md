@@ -8,7 +8,7 @@ This first version provides authenticated Bluetooth pairing/reconnection, phone
 battery status, automatic Mac → phone text clipboard delivery, explicit phone →
 Mac text clipboard delivery, **real Android internet hotspot start/stop**, and
 opt-in notification mirroring with dismissal and supported reply/action buttons.
-Media controls, files, calls, camera streaming and screen sharing are not implemented.
+Opt-in now playing, remote media controls and bidirectional web-link handoff are also supported. Files, calls, camera streaming and screen sharing are not implemented.
 
 ## Build
 
@@ -198,3 +198,53 @@ The companion sends battery percentage, charging state, the default mobile-data 
 No phone number, SIM identifier, call history, or location is collected for this feature. `ACCESS_NETWORK_STATE` is a normal permission used only to distinguish Wi-Fi/mobile data/no active network. Missing radio data appears as unavailable. On a dual-SIM phone this summarizes the default data SIM, rather than both SIMs.
 
 Click the phone status strip in the Mac notch to see device name, encrypted connection status, battery/charging, carrier, signal, network kind, and **Instant hotspot → Connect / Disconnect**. The hotspot button uses the same helper-backed connection flow as Settings and requires Mac Location access for Wi-Fi discovery.
+
+## Phone media
+
+Enable **Share now playing and allow Mac playback controls** in the companion and
+grant its Android notification access. This is a separate opt-in from notification
+mirroring. Active-session title, artist, album, duration and position travel over
+the authenticated Bluetooth link. The Mac shows the selected player in its music
+source list and Phone / Android settings; play, pause, toggle, next, previous,
+stop and seek use the phone app's advertised transport actions.
+
+Playing sessions take priority over paused sessions. Commands carry an ephemeral
+session ID so a delayed command cannot control a newly selected player. Turning
+sharing off clears Mac media and rejects new commands. No audio capture, streaming,
+artwork or playback history is included. Third-party players may expose fewer
+controls. Android active-session access uses the enabled notification listener,
+as described in the [MediaSessionManager documentation](https://developer.android.com/reference/android/media/session/MediaSessionManager).
+
+Debug builds include `MediaFixtureActivity`, a silent synthetic player with no
+audio output. The Mac repository's `scripts/test-phone-media.py PID` checks
+metadata, transport commands, exact seek position, disabling sharing and session
+removal without changing real music playback.
+
+## Web-link handoff
+
+Enable **Receive web links from paired Mac** and allow Sapphire notifications.
+In Mac Phone / Android settings, enter a URL and choose **Send link to phone**.
+The phone posts a silent notification; tap it to review the full link, then choose
+**Open in browser**. Nothing opens automatically. A blocked notification channel
+or disabled receiving setting returns a status to the Mac. Only the latest pending
+link notification is kept, and disconnect clears it.
+
+To send the other way, choose your browser's **Share → Send link to Mac**, then
+confirm **Send to paired Mac**. Sapphire's Mac settings show the full received URL
+and an explicit **Open received link on Mac** action. Received links are cleared
+from the app when disconnected; neither companion stores a link history.
+
+Both peers accept only a single ASCII HTTP/HTTPS URL of up to 4,096 bytes, without
+embedded credentials, backslashes or spaces; percent-encoded paths are supported.
+Custom schemes, file URLs and JavaScript URLs are rejected. Pairing and encryption
+are required in both directions. Debug builds include `HandoffFixtureActivity`
+for the fixed public example.com test URL. It is absent from release APKs.
+
+## Bluetooth radio recovery
+
+While the connection service is running, switching Android Bluetooth off clears
+its transport and ephemeral session. Switching it on opens a fresh GATT server
+automatically and the saved Mac can authenticate again. Old-server callbacks are
+ignored. An explicitly stopped service remains stopped. Two physical off/on
+cycles were verified on the Galaxy S24 Ultra; test logs and scope are described
+in [VERIFICATION.md](VERIFICATION.md).

@@ -11,6 +11,7 @@ for tethering. Android hidden interfaces remain supplied by the installed OS.
 
 Maven dependencies are version-pinned in the module build files:
 
+- Material Components for Android 1.14.0 (Material 3 Expressive) — Apache-2.0, https://github.com/material-components/material-components-android
 - ZXing Core 3.5.3 — Apache-2.0, https://github.com/zxing/zxing
 - Shizuku API/provider 13.1.5 — Apache-2.0, https://github.com/RikkaApps/Shizuku-API
 - HiddenApiBypass 6.1 — Apache-2.0, https://github.com/LSPosed/AndroidHiddenApiBypass

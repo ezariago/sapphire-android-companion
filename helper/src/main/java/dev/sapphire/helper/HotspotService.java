@@ -169,6 +169,9 @@ public final class HotspotService extends Service {
         throw new NoSuchMethodException(name);
     }
 
+    // This is an intentionally hidden Binder interface, reached only after the
+    // existing Shizuku permission and targeted android.net exemptions above.
+    @android.annotation.SuppressLint("BlockedPrivateApi")
     private static void credentials(IHotspotCallback callback) {
         try {
             Object wifi = service("wifi", "android.net.wifi.IWifiManager$Stub");

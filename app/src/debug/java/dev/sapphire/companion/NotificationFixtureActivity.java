@@ -13,7 +13,9 @@ public final class NotificationFixtureActivity extends Activity {
         super.onCreate(saved);
         String command = getIntent().getStringExtra("fixture");
         if (command != null) {
-            if ("remove".equals(command)) getSystemService(NotificationManager.class).cancel(TAG, ID);
+            if ("test-enable".equals(command) || "test-disable".equals(command)) {
+                getSharedPreferences("settings", 0).edit().putBoolean("fixtureNotifications", "test-enable".equals(command)).apply();
+            } else if ("remove".equals(command)) getSystemService(NotificationManager.class).cancel(TAG, ID);
             else post(this, "update".equals(command) ? "Updated synthetic notification." : "Hello from the Android notification fixture.");
             finish();
             return;
@@ -32,10 +34,13 @@ public final class NotificationFixtureActivity extends Activity {
     }
     static void post(Context context, String text) {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel("notification-fixture", "Notification test", NotificationManager.IMPORTANCE_DEFAULT));
+        NotificationChannel channel = new NotificationChannel("notification-fixture-silent-v2", "Silent notification test", NotificationManager.IMPORTANCE_DEFAULT);
+        channel.setSound(null, null);
+        channel.enableVibration(false);
+        manager.createNotificationChannel(channel);
         PendingIntent reply = PendingIntent.getBroadcast(context, 21, new Intent(context, ActionReceiver.class).setAction("fixture.reply"), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
         PendingIntent action = PendingIntent.getBroadcast(context, 22, new Intent(context, ActionReceiver.class).setAction("fixture.action"), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        manager.notify(TAG, ID, new Notification.Builder(context, "notification-fixture")
+        manager.notify(TAG, ID, new Notification.Builder(context, "notification-fixture-silent-v2")
                 .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Sapphire mirroring test")
                 .setContentText(text).setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(new Notification.Action.Builder(null, "Reply", reply)

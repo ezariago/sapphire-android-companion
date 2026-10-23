@@ -52,6 +52,24 @@ public final class LinkService extends Service {
         main.postDelayed(flushNotifications, 100);
     }
     private BluetoothManager manager;
+    private int bluetoothGeneration;
+    private boolean destroyed;
+    private final Runnable reopenBluetooth = () -> { if (!destroyed) openBluetooth(); };
+    private final BroadcastReceiver bluetoothState = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (!BluetoothAdapter.ACTION_STATE_CHANGED.equals(intent.getAction())) return;
+            int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+            if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
+                main.removeCallbacks(reopenBluetooth);
+                closeBluetooth();
+                clearPairing();
+                setStatus("Bluetooth is off. Your saved Mac pairing is retained; reconnecting when Bluetooth turns on.");
+            } else if (state == BluetoothAdapter.STATE_ON) {
+                main.removeCallbacks(reopenBluetooth);
+                main.postDelayed(reopenBluetooth, 700);
+            }
+        }
+    };
     private BluetoothGattServer server;
     private BluetoothLeAdvertiser advertiser;
     private BluetoothGattCharacteristic outbox;
@@ -59,6 +77,9 @@ public final class LinkService extends Service {
     private int mtu = 23, messageId, epoch;
     private boolean subscribed, notificationPending, serviceReady;
     private String lastStatusPayload = "";
+    private String lastMediaPayload = "";
+    private PhoneMedia media;
+    private PhoneHandoff handoff;
     private long lastStatusSent;
     private final ArrayDeque<byte[]> outgoing = new ArrayDeque<>();
     private GattFrames frames = new GattFrames();
@@ -98,7 +119,14 @@ public final class LinkService extends Service {
             deviceID = UUID.randomUUID().toString();
             getSharedPreferences("settings", 0).edit().putString("deviceID", deviceID).apply();
         }
+        media = new PhoneMedia(this);
+        handoff = new PhoneHandoff(this);
         manager = getSystemService(BluetoothManager.class);
+        IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+        // ACTION_STATE_CHANGED is a protected system broadcast sent by the
+        // privileged Bluetooth process, which is not always the system UID.
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(bluetoothState, bluetoothFilter, Context.RECEIVER_EXPORTED);
+        else registerReceiver(bluetoothState, bluetoothFilter);
         openBluetooth();
         main.postDelayed(maintenance, 1000);
     }
@@ -134,13 +162,25 @@ public final class LinkService extends Service {
         return getSharedPreferences("settings", 0).getBoolean("clipboard", true);
     }
 
+    private void closeBluetooth() {
+        bluetoothGeneration++;
+        BluetoothGattServer previous = server;
+        server = null; serviceReady = false; outbox = null;
+        try { if (advertiser != null) advertiser.stopAdvertising(advertising); } catch (RuntimeException ignored) { }
+        advertiser = null;
+        try { if (previous != null) previous.close(); } catch (RuntimeException ignored) { }
+        resetConnection(); peer = null;
+        trace("Bluetooth transport retired");
+    }
+
     private void openBluetooth() {
+        if (destroyed || server != null) return;
         try {
             if (manager == null || manager.getAdapter() == null || !manager.getAdapter().isEnabled()) {
                 setStatus("Turn on Bluetooth, then tap Start connection.");
                 return;
             }
-            server = manager.openGattServer(this, gatt);
+            server = manager.openGattServer(this, gatt(++bluetoothGeneration));
             if (server == null) throw new IllegalStateException();
             BluetoothGattService service = new BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY);
             service.addCharacteristic(new BluetoothGattCharacteristic(INBOX, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
@@ -171,10 +211,11 @@ public final class LinkService extends Service {
         }
     }
 
-    private final BluetoothGattServerCallback gatt = new BluetoothGattServerCallback() {
+    private BluetoothGattServerCallback gatt(final int generation) { return new BluetoothGattServerCallback() {
         @Override
         public void onServiceAdded(int status, BluetoothGattService service) {
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 serviceReady = status == BluetoothGatt.GATT_SUCCESS;
                 if (serviceReady) advertise();
                 else setStatus("Bluetooth service setup failed.");
@@ -184,6 +225,7 @@ public final class LinkService extends Service {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int state) {
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 if (state == BluetoothProfile.STATE_CONNECTED) {
                     if (peer != null && !peer.equals(device)) {
                         server.cancelConnection(device);
@@ -204,6 +246,7 @@ public final class LinkService extends Service {
         @Override
         public void onMtuChanged(BluetoothDevice device, int value) {
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 if (device.equals(peer)) mtu = Math.max(23, Math.min(517, value));
             });
         }
@@ -212,6 +255,7 @@ public final class LinkService extends Service {
         public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean prepared, boolean response, int offset, byte[] value) {
             byte[] copy = value.clone();
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 boolean allowed = device.equals(peer) && !prepared && offset == 0 && (characteristic.getUuid().equals(INBOX) || characteristic.getUuid().equals(CONTROL));
                 if (response)
                     server.sendResponse(device, requestId, allowed ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
@@ -227,6 +271,7 @@ public final class LinkService extends Service {
         @Override
         public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean prepared, boolean response, int offset, byte[] value) {
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 boolean valid = device.equals(peer) && descriptor.getUuid().equals(CCC) && !prepared && offset == 0 && (Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) || Arrays.equals(value, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE));
                 if (valid)
                     subscribed = Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
@@ -239,17 +284,24 @@ public final class LinkService extends Service {
 
         @Override
         public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
-            main.post(() -> server.sendResponse(device, requestId, device.equals(peer) && offset == 0 ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, subscribed ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE));
+            main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                server.sendResponse(device, requestId, device.equals(peer) && offset == 0 ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, subscribed ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+            });
         }
 
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
-            main.post(() -> server.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null));
+            main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                server.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
+            });
         }
 
         @Override
         public void onNotificationSent(BluetoothDevice device, int status) {
             main.post(() -> {
+                if (destroyed || generation != bluetoothGeneration || server == null) return;
                 if (!device.equals(peer)) return;
                 notificationPending = false;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -259,11 +311,14 @@ public final class LinkService extends Service {
                 drain();
             });
         }
-    };
+    }; }
 
     private void resetConnection() {
         epoch++;
         secure = false;
+        if (media != null) media.reset();
+        if (handoff != null) handoff.reset();
+        lastMediaPayload = "";
         notificationSubscribed = false;
         notificationQueue.clear();
         main.removeCallbacks(flushNotifications);
@@ -404,7 +459,13 @@ public final class LinkService extends Service {
                     NotificationMirror.instance.command(type, p);
                 break;
             case "media.request":
-                send("media.state", object("isPlaying", false, "title", "", "artist", "", "durationMs", 0, "positionMs", 0), false);
+                sendMediaState(true);
+                break;
+            case "media.command":
+                if (media != null && media.command(p)) main.postDelayed(() -> sendMediaState(true), 300);
+                break;
+            case "handoff.url":
+                if (handoff != null) send("handoff.result", handoff.receive(p), false);
                 break;
             case "clipboard.update":
                 if (clipboardEnabled() && "text".equals(p.optString("contentType"))) {
@@ -444,6 +505,23 @@ public final class LinkService extends Service {
         }
     }
 
+    boolean sendHandoff(String input) {
+        String url = HandoffPolicy.url(input);
+        if (!secure || url == null) return false;
+        send("handoff.url", object("requestId", UUID.randomUUID().toString(), "url", url), false);
+        return secure;
+    }
+
+    private void sendMediaState(boolean force) {
+        if (!secure || media == null) return;
+        JSONObject payload = media.read();
+        String encoded = payload.toString();
+        if (force || !encoded.equals(lastMediaPayload)) {
+            send("media.state", payload, false);
+            lastMediaPayload = encoded;
+        }
+    }
+
     private int battery() {
         Intent i = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         return i == null ? 0 : Math.max(0, Math.min(100, 100 * i.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) / Math.max(1, i.getIntExtra(BatteryManager.EXTRA_SCALE, 100))));
@@ -471,6 +549,7 @@ public final class LinkService extends Service {
                 advertise();
             }
             sendDeviceStatus(false);
+            sendMediaState(false);
             main.postDelayed(this, 2000);
         }
     };
@@ -676,13 +755,11 @@ public final class LinkService extends Service {
 
     @Override
     public void onDestroy() {
+        destroyed = true;
+        try { unregisterReceiver(bluetoothState); } catch (IllegalArgumentException ignored) { }
         main.removeCallbacksAndMessages(null);
+        closeBluetooth();
         for (ServiceConnection c : new ArrayList<>(helperConnections)) release(c);
-        try {
-            if (advertiser != null) advertiser.stopAdvertising(advertising);
-            if (server != null) server.close();
-        } catch (Exception ignored) {
-        }
         secure = false;
         notificationSubscribed = false;
         if (NotificationMirror.instance != null) NotificationMirror.instance.configure(false, false, false);

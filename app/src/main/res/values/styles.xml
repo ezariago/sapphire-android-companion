@@ -1,1 +1,30 @@
-<resources><style name="AppTheme" parent="android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">#8DB8FF</item><item name="android:windowLightStatusBar">false</item><item name="android:navigationBarColor">#10141D</item><item name="android:windowBackground">#10141D</item><item name="android:statusBarColor">#10141D</item><item name="android:windowActionModeOverlay">true</item></style></resources>
+<resources>
+    <style name="AppTheme" parent="Theme.Material3Expressive.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/sapphire_primary</item>
+        <item name="colorOnPrimary">@color/sapphire_on_primary</item>
+        <item name="colorPrimaryContainer">@color/sapphire_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/sapphire_on_primary_container</item>
+        <item name="colorSecondary">@color/sapphire_secondary</item>
+        <item name="colorOnSecondary">@color/sapphire_on_primary</item>
+        <item name="colorSecondaryContainer">@color/sapphire_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/sapphire_on_secondary_container</item>
+        <item name="colorSurface">@color/sapphire_surface</item>
+        <item name="colorOnSurface">@color/sapphire_text</item>
+        <item name="colorSurfaceVariant">@color/sapphire_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/sapphire_muted</item>
+        <item name="colorSurfaceContainer">@color/sapphire_surface_variant</item>
+        <item name="colorSurfaceContainerLow">@color/sapphire_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/sapphire_surface_variant</item>
+        <item name="colorOutline">@color/sapphire_outline</item>
+        <item name="colorOutlineVariant">@color/sapphire_outline</item>
+        <item name="colorError">@color/sapphire_error</item>
+        <item name="android:colorBackground">@color/sapphire_background</item>
+        <item name="android:windowBackground">@color/sapphire_background</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">@bool/sapphire_light_system_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/sapphire_light_system_bars</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:navigationBarColor">@color/sapphire_background</item>
+        <item name="android:statusBarColor">@color/sapphire_background</item>
+    </style>
+</resources>

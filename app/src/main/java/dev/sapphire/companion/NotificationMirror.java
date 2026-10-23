@@ -26,7 +26,9 @@ public final class NotificationMirror extends NotificationListenerService {
     }
 
     static boolean enabled(Context context) {
-        return context.getSharedPreferences("settings", 0).getBoolean("notifications", false)
+        boolean debugFixture = (context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                && context.getSharedPreferences("settings", 0).getBoolean("fixtureNotifications", false);
+        return (context.getSharedPreferences("settings", 0).getBoolean("notifications", false) || debugFixture)
                 && context.getSystemService(NotificationManager.class).isNotificationListenerAccessGranted(
                     new ComponentName(context, NotificationMirror.class));
     }
@@ -35,7 +37,7 @@ public final class NotificationMirror extends NotificationListenerService {
         close();
         instance = this;
         preferences = (prefs, key) -> {
-            if ("notifications".equals(key)) main.post(() -> {
+            if ("notifications".equals(key) || "fixtureNotifications".equals(key)) main.post(() -> {
                 LinkService link = LinkService.instance;
                 configure(link != null && link.notificationSubscribed, includeGeneral, includeSystem);
             });
@@ -130,6 +132,9 @@ public final class NotificationMirror extends NotificationListenerService {
             boolean general = ranked && ranking.getImportance() < NotificationManager.IMPORTANCE_DEFAULT;
             boolean fixture = (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
                     && item.getPackageName().equals(getPackageName()) && "sapphire-notification-fixture".equals(item.getTag());
+            // Synthetic device tests may opt in to this one fixed debug fixture
+            // while the user's normal notification sharing preference stays off.
+            if (!getSharedPreferences("settings", 0).getBoolean("notifications", false) && !fixture) return;
             boolean eligible = NotificationPolicy.eligible(item.getPackageName(), fixture ? "" : getPackageName(),
                     item.getUser().equals(android.os.Process.myUserHandle()), n.visibility == Notification.VISIBILITY_SECRET,
                     item.isOngoing(), (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0,

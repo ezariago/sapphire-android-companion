@@ -1,0 +1,16 @@
+<resources>
+    <color name="sapphire_background">#F8F9FF</color>
+    <color name="sapphire_surface">#FFFFFF</color>
+    <color name="sapphire_surface_variant">#EEF0FA</color>
+    <color name="sapphire_primary">#3454B4</color>
+    <color name="sapphire_on_primary">#FFFFFF</color>
+    <color name="sapphire_primary_container">#DEE4FF</color>
+    <color name="sapphire_on_primary_container">#122967</color>
+    <color name="sapphire_secondary">#526080</color>
+    <color name="sapphire_secondary_container">#DFE5F9</color>
+    <color name="sapphire_on_secondary_container">#172440</color>
+    <color name="sapphire_text">#191C27</color>
+    <color name="sapphire_muted">#555D70</color>
+    <color name="sapphire_outline">#C5C6D6</color>
+    <color name="sapphire_error">#BA1A1A</color>
+</resources>

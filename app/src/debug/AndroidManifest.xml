@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <activity android:name=".HandoffFixtureActivity" android:exported="true" android:label="Sapphire link handoff test" />
+        <activity android:name=".MediaFixtureActivity" android:exported="true" android:label="Sapphire silent media test" />
         <activity android:name=".NotificationFixtureActivity" android:exported="true" android:label="Sapphire notification test" />
         <receiver android:name=".NotificationFixtureActivity$ActionReceiver" android:exported="false" />
     </application>
