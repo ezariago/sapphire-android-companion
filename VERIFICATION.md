@@ -222,3 +222,11 @@ Save verification. Those production/UI/OEM paths remain open. Source version is
 - Still pending: native Save/provider and File Shelf interaction, maximum-size
   BLE throughput, storage pressure, locked-phone and OEM lifecycle behaviour.
   This verifies defined cache staging; it is not full file-transfer parity.
+
+
+A subsequent optional screen-off probe detected a wake event and failed its
+background-condition assertion. Cleanup bound the exact transfer ID, discarded
+that fixture and restored the original preference; final sleep verification
+passed. Cause was not established. No asleep/locked/OEM pass is claimed and no
+persistent wake/notification setting was changed. Ordinary live staging results
+above remain valid within their stated scope.
