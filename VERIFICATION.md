@@ -230,3 +230,15 @@ that fixture and restored the original preference; final sleep verification
 passed. Cause was not established. No asleep/locked/OEM pass is claimed and no
 persistent wake/notification setting was changed. Ordinary live staging results
 above remain valid within their stated scope.
+
+## Private provider-save check — 24 October 2026
+
+On Samsung RRCX102WVCZ, after certificate-matched `install -r` and secure BLE resume:
+production Save through ContentResolver passed a refused destination (false result,
+no output, staging retained), then an allowed app-owned debug provider (exact
+4,097 bytes/SHA-256, staging retained). Explicit fixture discard and preference
+restoration passed; final power state was Dozing. No user file or external picker
+was used. Provider validates active run, authority, exact path and write mode;
+non-exported and no URI grants. Release manifest excludes both test components.
+JVM tests, debug/release builds and debug lint passed. This is not a system picker,
+third-party provider, max-size throughput or screen-off-transfer verification.

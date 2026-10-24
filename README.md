@@ -308,8 +308,8 @@ that asset, run the Mac repository's `scripts/test-phone-file-transfer.sh` and c
 `build/file-transfer-tests/wire.json` to
 `devicechecks/src/main/assets/mac-file-transfer.json`; verify semantic agreement.
 
-Actual encrypted BLE file transfer between both normal apps and actual document-
-picker/provider Save remain attended checks. No normal companion update is
+Encrypted BLE transfer between both normal apps is now fixture-verified below;
+the system document picker and third-party provider Save remain attended checks. No normal companion update is
 installed by the isolated fixture script.
 
 
@@ -323,5 +323,18 @@ fixture discard. The receive preference was restored and the phone put to sleep.
 No user file, external picker, browser, message or call was used. Debug-only
 `FileTransferFixtureActivity` accepts only fixed known fixture metadata and an
 exact expected transfer ID, refuses an existing active/staged file, and is absent
-from the release manifest. Actual Save/provider UI, maximum-size throughput,
+from the release manifest. System picker/third-party provider UI, maximum-size throughput,
 File Shelf and locked/OEM behaviour remain unverified. See `VERIFICATION.md`.
+
+### Native private provider-save check
+
+The live USB-orchestrated BLE fixture now exercises production `PhoneFileTransfers.save`
+through `ContentResolver`: refused output returns failure with staging preserved;
+a successful save produces the exact 4,097 bytes/hash and retains staging until
+discard. A non-exported debug-only provider accepts only the active run and its
+fixed cache output, with no user paths or storage permissions. Both it and the
+fixture activity are absent from release manifests. Reports are atomic and the
+Mac harness waits for the asynchronous action result. Debug/release builds, JVM
+tests and debug lint passed. Original receive preference and normal Mac startup
+were restored and the phone verified asleep. Picker UI and external provider
+behaviour remain unverified.
