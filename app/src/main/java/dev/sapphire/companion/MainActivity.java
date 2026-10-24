@@ -358,7 +358,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         boolean connected = service != null && service.secure;
         String clipboardState = service == null ? "off" : service.backgroundClipboard.state;
         clipboardSyncStatus.setText("ready".equals(clipboardState) ? "Background clipboard is ready." : "needs_setup".equals(clipboardState)
-            ? "Background clipboard needs helper permission/setup. Retry after authorizing Shizuku." : "connecting".equals(clipboardState)
+            ? "Background clipboard needs helper permission/setup. It retries automatically; Retry checks now." : "connecting".equals(clipboardState)
             ? "Connecting background clipboard…" : "Background clipboard is off.");
         String name = service != null && !service.macName.isEmpty() ? service.macName : savedMacName;
         if (service != null) savedMacName = service.macName;

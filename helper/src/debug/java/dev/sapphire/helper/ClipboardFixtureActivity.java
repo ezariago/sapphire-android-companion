@@ -14,7 +14,7 @@ public final class ClipboardFixtureActivity extends Activity {
     private String run, action;
     private boolean handled;
     private static final class State {
-        Activity activity; String run; ClipData original; boolean preference; ServiceConnection connection; IClipboardHelper helper; IClipboardCallback callback;
+        PowerManager.WakeLock awake; Activity activity; String run; ClipData original; boolean preference; ServiceConnection connection; IClipboardHelper helper; IClipboardCallback callback;
     }
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -22,7 +22,7 @@ public final class ClipboardFixtureActivity extends Activity {
         try { UUID.fromString(run); } catch (Exception invalid) { finish(); return; }
         if ("restore".equals(action) && active == null) { report("wrong-run"); finishAffinity(); return; }
         KeyguardManager lock = getSystemService(KeyguardManager.class);
-        if ("begin".equals(action) && (lock == null || lock.isDeviceLocked() || lock.isKeyguardLocked())) {
+        if (("begin".equals(action) || "prepare-relay".equals(action)) && (lock == null || lock.isDeviceLocked() || lock.isKeyguardLocked())) {
             report("locked"); finish(); return;
         }
     }
@@ -30,7 +30,7 @@ public final class ClipboardFixtureActivity extends Activity {
         try {
             android.util.AtomicFile file = new android.util.AtomicFile(new File(getFilesDir(), "clipboard-fixture.json"));
             FileOutputStream out = file.startWrite();
-            try { out.write(new JSONObject().put("run", run).put("state", state).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); file.finishWrite(out); }
+            try { out.write(new JSONObject().put("run", run).put("state", state).put("action", action).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); file.finishWrite(out); }
             catch (Exception unavailable) { file.failWrite(out); }
         } catch (Exception ignored) {}
     }
@@ -39,12 +39,38 @@ public final class ClipboardFixtureActivity extends Activity {
         if (!focused || handled || isFinishing()) return;
         handled = true;
         if ("restore".equals(action)) { restore(); return; }
-        if (!"begin".equals(action) || active != null) { report("blocked"); finish(); return; }
+        if ("disable-relay".equals(action) || "enable-relay".equals(action)) {
+            if (active == null || !run.equals(active.run)) { report("wrong-run"); finish(); return; }
+            boolean enabled = "enable-relay".equals(action);
+            getSharedPreferences("helper",0).edit().putBoolean("clipboard",enabled).commit();
+            report(enabled ? "enabled" : "disabled"); finish(); return;
+        }
+        if ("copy-relay".equals(action) || "copy-sensitive".equals(action) || "copy-remote".equals(action)) {
+            if (active == null || !run.equals(active.run)) { report("wrong-run"); finish(); return; }
+            State state = active;
+            startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (active != state) return;
+                if (hasWindowFocus()) { report("still-focused"); return; }
+                ClipData clip = ClipData.newPlainText("sapphire-fixture-" + run, TEXT);
+                PersistableBundle extras = new PersistableBundle();
+                if ("copy-sensitive".equals(action)) extras.putBoolean("android.content.extra.IS_SENSITIVE",true);
+                if ("copy-remote".equals(action)) extras.putBoolean("dev.sapphire.fromMac",true);
+                clip.getDescription().setExtras(extras);
+                getSystemService(ClipboardManager.class).setPrimaryClip(clip);
+                report("copied-in-background"); finish();
+            },1000);
+            return;
+        }
+        if (!("begin".equals(action) || "prepare-relay".equals(action)) || active != null) { report("blocked"); finish(); return; }
         State state = new State(); state.run = run; state.activity = this;
         state.original = getSystemService(ClipboardManager.class).getPrimaryClip();
         state.preference = getSharedPreferences("helper", 0).getBoolean("clipboard", false);
         active = state;
+        state.awake = getSystemService(PowerManager.class).newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ON_AFTER_RELEASE, "sapphire:clipboard-fixture");
+        state.awake.acquire(10 * 60 * 1000L);
         getSharedPreferences("helper", 0).edit().putBoolean("clipboard", true).commit();
+        if ("prepare-relay".equals(action)) { report("prepared"); finish(); return; }
         state.callback = new IClipboardCallback.Stub() {
             public void onStatus(String value) { runOnUiThread(() -> {
                 if (active != state) return;
@@ -76,13 +102,14 @@ public final class ClipboardFixtureActivity extends Activity {
         State state = active;
         if (state == null || !run.equals(state.run)) { report("wrong-run"); finish(); return; }
         try { if (state.helper != null) state.helper.stop(state.callback); } catch (RemoteException ignored) {}
-        try { getApplicationContext().unbindService(state.connection); } catch (IllegalArgumentException ignored) {}
+        try { if (state.connection != null) getApplicationContext().unbindService(state.connection); } catch (IllegalArgumentException ignored) {}
         getSharedPreferences("helper", 0).edit().putBoolean("clipboard", state.preference).commit();
         ClipboardManager board = getSystemService(ClipboardManager.class);
         ClipData current = board.getPrimaryClip();
         if (current != null && ("sapphire-fixture-" + run).contentEquals(current.getDescription().getLabel()) && current.getItemCount() == 1 && TEXT.equals(String.valueOf(current.getItemAt(0).getText()))) {
             if (state.original == null) board.clearPrimaryClip(); else board.setPrimaryClip(state.original);
         }
+        if (state.awake != null && state.awake.isHeld()) state.awake.release();
         state.original = null; active = null; state.activity.finish(); report("restored"); finish();
     }
 }

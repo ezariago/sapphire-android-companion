@@ -259,3 +259,28 @@ no background delivery pass is claimed. Pending fixture activities were cleared,
 and phone returned to sleep. The code probe keeps any original clipboard opaque
 and in memory, restores only its own still-current synthetic copy and original
 helper switch, and is debug-only. Human unlock is pending for that probe.
+
+## Attended background relay and recovery — 24 October 2026
+
+Production background capture now passes on Samsung RRCX102WVCZ. The standalone
+probe restored the opaque original clipboard/helper switch; its first cleanup
+failed because Android reused the begin Activity. Launching fixture actions in
+distinct tasks fixed that issue, and the complete probe then passed.
+
+The live cross-device check passed with Launcher in front and neither Sapphire
+activity focused: production helper callback, normal Companion client, encrypted
+BLE, exact synthetic marked private Mac clipboard, actual notch activity
+selection/expiry, sensitive and Mac-origin copies skipped, fresh same-text copies
+accepted. Helper opt-out became unavailable; re-enable recovered automatically
+after the bounded retry, with no existing-clipboard replay. A subsequent copy
+relayed successfully. Native browser-open clicks, actual heads-up/notch visual
+appearance, Shizuku process death/reboot and other profiles/OEMs remain open.
+
+Owned phone clipboard/config snapshots were restored. The private Mac test
+pasteboard and diagnostic files were removed and normal startup restored. Normal
+clipboard switches and helper access were enabled afterward; receive-links was
+already enabled. The user explicitly superseded the older sleep instruction:
+these scripts no longer sleep the phone. Debug fixtures hold an expiring screen
+wake lock during their session, then release it without persistent wake changes.
+Companion/Helper debug/release builds, debug lint and 26 JVM cases pass; release
+manifest excludes all fixtures and the Helper's debug wake-lock permission.

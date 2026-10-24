@@ -32,7 +32,7 @@ public final class ClipboardService extends Service {
         }
     };
     private final SharedPreferences.OnSharedPreferenceChangeListener preferences = (prefs, key) -> {
-        if ("clipboard".equals(key) && !prefs.getBoolean("clipboard", false)) main.post(this::clear);
+        if ("clipboard".equals(key) && !prefs.getBoolean("clipboard", false)) main.post(() -> { status("disabled"); clear(); });
     };
     @Override public void onCreate() {
         super.onCreate(); Shizuku.addBinderDeadListener(dead);

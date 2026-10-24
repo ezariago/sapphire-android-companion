@@ -357,6 +357,26 @@ is controlled by Android notification settings/OEM policy.
 JVM checks, both apps' debug/release builds and debug lint pass. A real-phone
 notification-only fixture verified private visibility/review intent, 5,000 ms
 timeout and removal by six seconds without touching the clipboard or browser.
-The background clipboard probe could not start while the phone was locked; actual
-background capture and Mac notch/click interaction remain unverified. Unlock and
-reopen Companion/Start connection after installing as needed. See VERIFICATION.md.
+The attended background relay now passes with both Sapphire apps unfocused:
+helper → Companion → encrypted BLE → marked private Mac pasteboard, sensitive/
+remote-copy filtering, repeated fresh copies and Mac notch selection/expiry.
+Helper opt-out and re-enable recover automatically after the bounded retry delay,
+without replaying the current clipboard. Visual heads-up/notch appearance,
+browser-open clicks and reboot/OEM/profile variations remain separate checks.
+See VERIFICATION.md.
+
+### Background recovery and native verification
+
+Unavailable helper bindings/authorization now retry at bounded 30-second
+intervals while connected and enabled; ready bindings remain stable. Helper
+opt-out reports disabled before clearing its listener. Manual Retry is immediate,
+and turning off sending invalidates queued callbacks. Live native tests passed
+helper opt-out/re-enable recovery, with no replay, then relayed a fresh copy.
+
+The fixed debug relay test preserves the opaque phone clipboard in memory,
+restores only its own still-current fixture and snapshots, and uses a private Mac
+pasteboard for assertions. A debug-only bounded screen wake lock covers the
+fixture session; no persistent wake/alarm setting changes. The user's latest
+instruction leaves the phone awake after tests. All 26 JVM cases, both apps'
+debug/release builds and debug lint pass; fixture activities and WAKE_LOCK
+permission are absent from the Helper release manifest.
