@@ -173,6 +173,7 @@ final class IncomingFileTransfer {
             output.flush();
         } catch (java.security.NoSuchAlgorithmException unavailable) { throw new IOException("SHA-256 unavailable", unavailable); }
     }
+    synchronized boolean isReceiving() { return active != null; }
     synchronized boolean hasStoredFile() { return new File(root, "ready").exists(); }
     synchronized boolean discardUnavailable() {
         if (received() != null || !hasStoredFile()) return false;

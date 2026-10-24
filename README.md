@@ -311,3 +311,17 @@ that asset, run the Mac repository's `scripts/test-phone-file-transfer.sh` and c
 Actual encrypted BLE file transfer between both normal apps and actual document-
 picker/provider Save remain attended checks. No normal companion update is
 installed by the isolated fixture script.
+
+
+### Live file-staging check (24 October 2026)
+
+The Samsung was upgraded in place from 0.3.0 to the built 0.5.0 debug APK with
+matching signing certificate and retained pairing. The Mac reconnected securely.
+The actual encrypted BLE sender/receiver passed disabled-offer rejection,
+acknowledged staging, an independent exact 4,097-byte/SHA-256 check and owned
+fixture discard. The receive preference was restored and the phone put to sleep.
+No user file, external picker, browser, message or call was used. Debug-only
+`FileTransferFixtureActivity` accepts only fixed known fixture metadata and an
+exact expected transfer ID, refuses an existing active/staged file, and is absent
+from the release manifest. Actual Save/provider UI, maximum-size throughput,
+File Shelf and locked/OEM behaviour remain unverified. See `VERIFICATION.md`.

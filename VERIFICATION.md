@@ -200,3 +200,25 @@ companion data and was removed afterward. The phone reported Dozing/stay-on fals
 This is file I/O/wire compatibility evidence, not live BLE or document-provider
 Save verification. Those production/UI/OEM paths remain open. Source version is
 0.5.0; the ordinary companion was not installed by these isolated tests.
+
+
+## Resumed live file-staging check, 24 October 2026
+
+- Debug/release app builds and debug lint passed; 24 JVM cases passed, including
+  active-receiver precondition transitions. Release manifest excludes the new
+  debug file fixture activity.
+- Updated normal Samsung app 0.3.0 → 0.5.0 in place after certificate comparison.
+  No app data was cleared; the Mac's saved pairing reconnected securely.
+- Production encrypted BLE carried the fixed 4,097-byte i % 251 payload. The
+  phone rejected its offer with Files disabled, then accepted/staged it when
+  enabled. The debug fixture independently read/verified exact bytes and SHA-256
+  before discarding only that expected-ID/name/size/hash match.
+- The original Files preference was restored. Mac diagnostics stopped, temporary
+  fixture state was removed and normal Mac app startup restored. Phone verified
+  Dozing, mStayOn=false. No external document provider or personal file was used.
+- Mac log: `build/phone-file-live-device.log` in the companion Mac checkout.
+  Fake-transport harness checks cover blocked setup, failed verification and
+  failed restoration without touching ADB. They exercise cleanup/sleep attempts.
+- Still pending: native Save/provider and File Shelf interaction, maximum-size
+  BLE throughput, storage pressure, locked-phone and OEM lifecycle behaviour.
+  This verifies defined cache staging; it is not full file-transfer parity.

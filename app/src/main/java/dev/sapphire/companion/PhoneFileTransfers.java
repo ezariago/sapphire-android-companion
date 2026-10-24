@@ -47,6 +47,7 @@ final class PhoneFileTransfers {
     }
     IncomingFileTransfer.Received received() { return receiver.received(); }
     boolean discard(String id) { return receiver.discard(id); }
+    boolean isReceiving() { return receiver.isReceiving(); }
     boolean hasStoredFile() { return receiver.hasStoredFile(); }
     boolean discardUnavailable() { return receiver.discardUnavailable(); }
     void save(String id, android.net.Uri destination, Consumer<Boolean> completion) {

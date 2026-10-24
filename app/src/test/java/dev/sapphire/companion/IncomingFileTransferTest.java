@@ -21,7 +21,9 @@ public final class IncomingFileTransferTest {
         try {
             IncomingFileTransfer receiver = new IncomingFileTransfer(root.toFile());
             String id = UUID.randomUUID().toString(); byte[] data = new byte[5000]; new Random(7).nextBytes(data);
+            assertFalse(receiver.isReceiving());
             assertEquals("ready", receiver.handle("file.offer", offer(id, data), true, 0).getString("state"));
+            assertTrue(receiver.isReceiving());
             assertNull(receiver.received());
             assertEquals("busy", receiver.handle("file.offer", offer(UUID.randomUUID().toString(), data), true, 1).getString("state"));
             int index = 0;
@@ -31,6 +33,7 @@ public final class IncomingFileTransferTest {
             }
             assertNull(receiver.received());
             assertEquals("complete", receiver.handle("file.finish", new JSONObject().put("requestId", id), true, 200).getString("state"));
+            assertFalse(receiver.isReceiving());
             assertEquals(data.length, receiver.received().size);
             receiver.abort(); // Disconnect preserves the completed file.
             IncomingFileTransfer restarted = new IncomingFileTransfer(root.toFile());
