@@ -81,6 +81,7 @@ public final class LinkService extends Service {
     private PhoneMedia media;
     private PhoneHandoff handoff;
     PhoneActions phoneActions;
+    private PhoneFileTransfers files;
     private long lastStatusSent;
     private final ArrayDeque<byte[]> outgoing = new ArrayDeque<>();
     private GattFrames frames = new GattFrames();
@@ -131,6 +132,7 @@ public final class LinkService extends Service {
         media = new PhoneMedia(this);
         handoff = new PhoneHandoff(this);
         phoneActions = new PhoneActions(this);
+        files = PhoneFileTransfers.get(this);
         manager = getSystemService(BluetoothManager.class);
         IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         // ACTION_STATE_CHANGED is a protected system broadcast sent by the
@@ -371,6 +373,7 @@ public final class LinkService extends Service {
         if (media != null) media.reset();
         if (handoff != null) handoff.reset();
         if (phoneActions != null) phoneActions.reset();
+        if (files != null) files.reset();
         lastMediaPayload = "";
         notificationSubscribed = false;
         notificationQueue.clear();
@@ -520,6 +523,15 @@ public final class LinkService extends Service {
             case "media.command":
                 if (media != null && media.command(p)) main.postDelayed(() -> sendMediaState(true), 300);
                 break;
+            case "file.offer":
+            case "file.chunk":
+            case "file.finish":
+            case "file.cancel":
+                if (files != null) {
+                    long capturedEpoch = epoch;
+                    files.receive(type, p, result -> { if (!destroyed && secure && capturedEpoch == epoch) send("file.transfer.result", result, false); });
+                }
+                break;
             case "phone.action.prepare":
                 if (phoneActions != null) send("phone.action.result", phoneActions.receive(p), false);
                 break;
@@ -594,6 +606,7 @@ public final class LinkService extends Service {
 
     private final Runnable maintenance = new Runnable() {
         public void run() {
+            if (files != null) files.tick();
             if (!hasBluetoothPermissions()) {
                 if (server != null || secure || pairingMode) permissionDenied();
                 main.postDelayed(this, 2000);

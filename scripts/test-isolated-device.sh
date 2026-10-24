@@ -25,3 +25,4 @@ SAPPHIRE_DEVICE_RESULT="$(adb -s "$SAPPHIRE_TEST_SERIAL" shell am instrument --u
 printf '%s\n' "$SAPPHIRE_DEVICE_RESULT"
 [[ "$SAPPHIRE_DEVICE_RESULT" == *'INSTRUMENTATION_RESULT: result=passed'* ]]
 [[ "$SAPPHIRE_DEVICE_RESULT" == *'INSTRUMENTATION_RESULT: launchedExternalActivities=false'* ]]
+[[ "$SAPPHIRE_DEVICE_RESULT" == *'INSTRUMENTATION_RESULT: fileReceiverPassed=true'* ]]

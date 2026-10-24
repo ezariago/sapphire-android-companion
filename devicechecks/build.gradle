@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 def fixtureSources = tasks.register('syncFixtureSources', Sync) {
     from('../app/src/main/java') {
         include 'dev/sapphire/companion/PhoneActionPolicy.java', 'dev/sapphire/companion/PhoneActionIntents.java',
-                'dev/sapphire/companion/LinkCrypto.java', 'dev/sapphire/companion/GattFrames.java'
+                'dev/sapphire/companion/LinkCrypto.java', 'dev/sapphire/companion/GattFrames.java', 'dev/sapphire/companion/IncomingFileTransfer.java'
     }
     into layout.buildDirectory.dir('generated/isolated')
 }

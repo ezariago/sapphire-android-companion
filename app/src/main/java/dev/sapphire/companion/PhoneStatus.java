@@ -24,6 +24,8 @@ final class PhoneStatus {
             result.put("hotspotStopSupported", true);
             result.put("handoffSupported", true);
             result.put("phoneActionDraftsSupported", true);
+            result.put("fileTransferVersion", 1);
+            result.put("fileTransferMaxBytes", IncomingFileTransfer.MAX_BYTES);
         } catch (Exception ignored) { }
         try {
             TelephonyManager radio = context.getSystemService(TelephonyManager.class);

@@ -23,6 +23,10 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     private String savedMacName = "";
     private EditText qr;
     private String permissionAction;
+    private String pendingFileSaveID;
+    private boolean savingFile;
+    private TextView receivedFileStatus;
+    private Button saveFileButton, discardFileButton;
     private final Runnable observer = this::refresh;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable refreshLoop = new Runnable() {
@@ -35,6 +39,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     @Override
     public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        if (saved != null) pendingFileSaveID = saved.getString("pendingFileSaveID");
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         ui = new SapphireUi(this);
         try {
@@ -254,6 +259,15 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
                 LinkService.instance.phoneActions.reset();
         });
         ui.body(phoneActions, "Mac drafts arrive as private notifications and expire after two minutes. Review on your unlocked phone, then open its SMS composer or dialer. Sapphire never sends an SMS or places a call. No contacts, SMS inbox or call history is read.");
+        LinearLayout files = ui.card(content, R.color.sapphire_surface, 28);
+        ui.cardHeading(files, R.drawable.ic_clipboard, "Files from Mac", "One file, ready to save.");
+        ui.toggle(files, "Receive files from paired Mac", "files", false, () -> {
+            if (!getSharedPreferences("settings", 0).getBoolean("files", false)) PhoneFileTransfers.get(this).reset();
+        });
+        ui.body(files, "Encrypted Bluetooth transfer, one file up to 5 MiB. Completed files stay in private app cache until you Save or Discard them. Save promptly; Android may clear cache. Disabling or disconnecting stops partial transfers and preserves completed files. Wi-Fi transfer and phone storage browsing are not implemented.");
+        receivedFileStatus = ui.body(files, "No staged file.");
+        saveFileButton = ui.button(files, "Save received file…", R.drawable.ic_arrow, true, this::saveReceivedFile);
+        discardFileButton = ui.button(files, "Discard staged file", R.drawable.ic_close, false, this::discardReceivedFile);
         LinearLayout hotspot = ui.card(content, R.color.sapphire_surface, 28);
         ui.cardHeading(hotspot, R.drawable.ic_hotspot, "Mobile hotspot", "Internet for your Mac, on the go.");
         ui.toggle(hotspot, "Allow Mac hotspot control", "hotspot", true, null);
@@ -331,6 +345,13 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         pairingHint.setText(service != null && service.localConfirmed ? "Confirmed on phone. Confirm on your Mac to finish." : "Confirm on both devices to finish pairing.");
         hotspotStatus.setText(service == null ? "" : service.hotspotStatus);
         hotspotStatus.setVisibility(hotspotStatus.length() == 0 ? View.GONE : View.VISIBLE);
+        PhoneFileTransfers files = PhoneFileTransfers.get(this);
+        IncomingFileTransfer.Received received = files.received();
+        receivedFileStatus.setText(savingFile ? "Copying to your chosen document…" : received == null
+                ? (files.hasStoredFile() ? "The staged cache entry is unavailable. Discard it to receive another file." : "No completed file awaiting Save.")
+                : received.name + " · " + android.text.format.Formatter.formatShortFileSize(this, received.size));
+        saveFileButton.setEnabled(!savingFile && pendingFileSaveID == null && received != null);
+        discardFileButton.setEnabled(!savingFile && pendingFileSaveID == null && files.hasStoredFile());
         notificationStatus.setText(NotificationMirror.enabled(this)
                 ? (NotificationMirror.instance != null ? "Notification access is ready." : "Waiting for Android notification access…")
                 : "Enable sharing and allow Android notification access to begin.");
@@ -339,10 +360,31 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     @Override
     protected void onSaveInstanceState(Bundle state) {
         state.putInt("page", selectedPage);
+        state.putString("pendingFileSaveID", pendingFileSaveID);
         state.putBoolean("pairingExpanded", pairingDetails.getVisibility() == View.VISIBLE);
         state.putString("pairingText", qr.getText().toString());
         for (int i = 0; i < pages.length; i++) state.putInt("scroll" + i, pages[i].getScrollY());
         super.onSaveInstanceState(state);
+    }
+
+    private void saveReceivedFile() {
+        IncomingFileTransfer.Received file = PhoneFileTransfers.get(this).received();
+        if (file == null || savingFile || pendingFileSaveID != null) return;
+        pendingFileSaveID = file.id;
+        try { startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, file.name), 77); }
+        catch (RuntimeException unavailable) { pendingFileSaveID = null; Toast.makeText(this, "No document picker is available.", Toast.LENGTH_LONG).show(); }
+    }
+    private void discardReceivedFile() {
+        PhoneFileTransfers files = PhoneFileTransfers.get(this);
+        IncomingFileTransfer.Received file = files.received();
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("Discard staged file?")
+                .setMessage("This removes only Sapphire's private staged copy. Save it first if you want to keep it.")
+                .setNegativeButton("Keep", null).setPositiveButton("Discard", (dialog, which) -> {
+                    boolean removed = file == null ? files.discardUnavailable() : files.discard(file.id);
+                    if (!removed) Toast.makeText(this, "The staged entry changed or could not be removed.", Toast.LENGTH_LONG).show();
+                    refresh();
+                }).show();
     }
 
     private void ensureConnection(String action) {
@@ -383,6 +425,18 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == 77) {
+            String id = pendingFileSaveID; pendingFileSaveID = null;
+            if (result == RESULT_OK && id != null && data != null && data.getData() != null && "content".equals(data.getData().getScheme())) {
+                savingFile = true; refresh();
+                PhoneFileTransfers.get(this).save(id, data.getData(), saved -> {
+                    savingFile = false;
+                    Toast.makeText(getApplicationContext(), saved ? "Copied to the chosen document. The staged copy is kept until Discard." : "Could not finish saving. Check the staged copy in Sapphire; your chosen document may be partial.", Toast.LENGTH_LONG).show();
+                    if (!isFinishing() && !isDestroyed()) refresh();
+                });
+            }
+            return;
+        }
         if (request == 20 && result == RESULT_OK && data != null) {
             qr.setText(data.getStringExtra("qr"));
             ensureConnection(null);
