@@ -142,3 +142,21 @@ Run the Mac repository's scripts with an opt-in diagnostic PID:
 `test-phone-radio.py`. The radio script deliberately toggles phone Bluetooth.
 Third-party player compatibility, real audio behavior and full browser navigation
 remain outside the silent fixture checks. No calls or messages were sent.
+
+
+## 24 October — isolated draft-intent checks
+
+Added opt-in SMS/dialer draft source and review lifecycle, without SMS/call or
+contacts permissions. App/helper builds and JVM policy tests passed. A new
+separate `dev.sapphire.fixture` APK on Samsung USB serial RRCX102WVCZ tested the
+production draft intent factory and policy, actual ECDH/ChaCha providers, replay
+rejection and GATT framing. It ran in its own package; no companion data, message,
+contacts, radio setting or notification channel was touched. No external activity
+was launched and no SMS/call was sent. The fixture was removed, and the phone
+reported `mWakefulness=Dozing`, `mStayOn=false` afterward.
+
+The test module synchronizes only selected production Java files into its ignored
+generated source directory before compiling; it does not replace production code
+with hand-maintained copies. Native notification/review UI, actual encrypted draft
+routing and system composer/dialer presentation remain unverified. The normal
+companion APK was built, not installed by the isolated test.

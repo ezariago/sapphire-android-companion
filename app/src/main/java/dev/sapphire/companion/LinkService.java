@@ -80,6 +80,7 @@ public final class LinkService extends Service {
     private String lastMediaPayload = "";
     private PhoneMedia media;
     private PhoneHandoff handoff;
+    PhoneActions phoneActions;
     private long lastStatusSent;
     private final ArrayDeque<byte[]> outgoing = new ArrayDeque<>();
     private GattFrames frames = new GattFrames();
@@ -121,6 +122,7 @@ public final class LinkService extends Service {
         }
         media = new PhoneMedia(this);
         handoff = new PhoneHandoff(this);
+        phoneActions = new PhoneActions(this);
         manager = getSystemService(BluetoothManager.class);
         IntentFilter bluetoothFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         // ACTION_STATE_CHANGED is a protected system broadcast sent by the
@@ -318,6 +320,7 @@ public final class LinkService extends Service {
         secure = false;
         if (media != null) media.reset();
         if (handoff != null) handoff.reset();
+        if (phoneActions != null) phoneActions.reset();
         lastMediaPayload = "";
         notificationSubscribed = false;
         notificationQueue.clear();
@@ -463,6 +466,9 @@ public final class LinkService extends Service {
                 break;
             case "media.command":
                 if (media != null && media.command(p)) main.postDelayed(() -> sendMediaState(true), 300);
+                break;
+            case "phone.action.prepare":
+                if (phoneActions != null) send("phone.action.result", phoneActions.receive(p), false);
                 break;
             case "handoff.url":
                 if (handoff != null) send("handoff.result", handoff.receive(p), false);

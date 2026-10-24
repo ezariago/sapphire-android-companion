@@ -8,7 +8,7 @@ This first version provides authenticated Bluetooth pairing/reconnection, phone
 battery status, automatic Mac → phone text clipboard delivery, explicit phone →
 Mac text clipboard delivery, **real Android internet hotspot start/stop**, and
 opt-in notification mirroring with dismissal and supported reply/action buttons.
-Opt-in now playing, remote media controls and bidirectional web-link handoff are also supported. Files, calls, camera streaming and screen sharing are not implemented.
+Opt-in now playing, remote media controls and bidirectional web-link handoff are also supported. Phone-reviewed SMS/dialer drafts now have source implementations. Full SMS inbox/call control, files, camera streaming and screen sharing are not implemented.
 
 ## Build
 
@@ -248,3 +248,34 @@ automatically and the saved Mac can authenticate again. Old-server callbacks are
 ignored. An explicitly stopped service remains stopped. Two physical off/on
 cycles were verified on the Galaxy S24 Ultra; test logs and scope are described
 in [VERIFICATION.md](VERIFICATION.md).
+
+
+## Phone-reviewed SMS and dialer drafts (0.4.0)
+
+Enable **Receive SMS and dialer drafts** to receive an authenticated Mac draft as
+a private notification. Review its number/text on your unlocked phone, then open
+the system SMS composer or dialer. Sapphire does not send messages, place calls,
+read contacts or access the SMS inbox/call history. No SMS or call permission is
+requested. The system app still requires the user's final send/call action.
+
+Drafts expire after two minutes, on disconnect/disable or replacement. Only one
+in-memory draft is retained; notification PendingIntents contain opaque review
+tokens rather than message/recipient data. Short/service codes, URI input,
+extensions, pauses and non-ASCII numbers are rejected; use 7–15 digits with an
+optional leading plus. Bodies allow up to 4,000 UTF-8 bytes. This is not full
+message/conversation/call synchronization or delivery confirmation.
+
+`./build.sh` builds the app/helper and runs JVM fixtures. For safe on-device
+policy/intent/crypto checks without replacing or instrumenting the real companion:
+
+```sh
+ANDROID_SERIAL=<authorized-usb-device> ./scripts/test-isolated-device.sh
+```
+
+That separate fixture package has no permissions, activities or access to the
+companion's data. It constructs review intents without launching them. It is
+removed afterward. Optional `SAPPHIRE_SLEEP_AFTER_TEST=true` returns an authorized
+test phone to sleep; it changes no persistent wake/notification/alarm setting.
+Native notification/review UI, opt-in/permission/lockscreen handling and actual
+Mac-to-phone draft routing still need attended verification. No real message or
+call is used by these tests.

@@ -23,6 +23,7 @@ final class PhoneStatus {
             result.put("hotspotMode", "internet");
             result.put("hotspotStopSupported", true);
             result.put("handoffSupported", true);
+            result.put("phoneActionDraftsSupported", true);
         } catch (Exception ignored) { }
         try {
             TelephonyManager radio = context.getSystemService(TelephonyManager.class);

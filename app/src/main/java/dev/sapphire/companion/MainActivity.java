@@ -247,6 +247,13 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
                 getSystemService(NotificationManager.class).cancel("sapphire-link-handoff", 2003);
         });
         ui.body(handoff, "Allow Sapphire notifications to receive links. Tap a notification to review before opening. To send a phone link, use your browser's Share menu → Send link to Mac.");
+        LinearLayout phoneActions = ui.card(content, R.color.sapphire_surface, 28);
+        ui.cardHeading(phoneActions, R.drawable.ic_devices, "Phone drafts", "Review before you act.");
+        ui.toggle(phoneActions, "Receive SMS and dialer drafts", "phoneActions", false, () -> {
+            if (!getSharedPreferences("settings", 0).getBoolean("phoneActions", false) && LinkService.instance != null && LinkService.instance.phoneActions != null)
+                LinkService.instance.phoneActions.reset();
+        });
+        ui.body(phoneActions, "Mac drafts arrive as private notifications and expire after two minutes. Review on your unlocked phone, then open its SMS composer or dialer. Sapphire never sends an SMS or places a call. No contacts, SMS inbox or call history is read.");
         LinearLayout hotspot = ui.card(content, R.color.sapphire_surface, 28);
         ui.cardHeading(hotspot, R.drawable.ic_hotspot, "Mobile hotspot", "Internet for your Mac, on the go.");
         ui.toggle(hotspot, "Allow Mac hotspot control", "hotspot", true, null);
