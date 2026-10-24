@@ -12,7 +12,7 @@ import android.widget.*;
 import java.util.*;
 
 public final class MainActivity extends androidx.appcompat.app.AppCompatActivity {
-    private TextView status, paired, code, hotspotStatus, notificationStatus;
+    private TextView status, paired, code, hotspotStatus, notificationStatus, clipboardSyncStatus;
     private Button confirm, connectionButton;
     private TextView connectionTitle, connectionBadge, pairingHint;
     private LinearLayout verification, pairingDetails;
@@ -27,7 +27,16 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     private boolean savingFile;
     private TextView receivedFileStatus;
     private Button saveFileButton, discardFileButton;
-    private final Runnable observer = this::refresh;
+    private final Runnable observer = () -> { refresh(); syncClipboardIfFocused(); };
+    private boolean resumed;
+    private final ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::syncClipboardIfFocused;
+    private void syncClipboardIfFocused() {
+        if (resumed && hasWindowFocus() && LinkService.instance != null) LinkService.instance.sendClipboardAutomatically();
+    }
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (focused) syncClipboardIfFocused();
+    }
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable refreshLoop = new Runnable() {
         public void run() {
@@ -228,7 +237,22 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         LinearLayout clipboard = ui.card(content, R.color.sapphire_surface, 28);
         ui.cardHeading(clipboard, R.drawable.ic_clipboard, "Clipboard", "Copy here. Continue there.");
         ui.toggle(clipboard, "Receive Mac clipboard", "clipboard", true, null);
-        ui.body(clipboard, "Mac text arrives automatically while connected. Android limits clipboard access in the background.");
+        ui.toggle(clipboard, "Automatically send phone clipboard", "sendClipboard", false, () -> {
+            syncClipboardIfFocused(); if (LinkService.instance != null) LinkService.instance.backgroundClipboard.refresh();
+        });
+        ui.toggle(clipboard, "Send clipboard while other apps are open", "backgroundClipboard", false, () -> {
+            if (LinkService.instance != null) LinkService.instance.backgroundClipboard.refresh();
+        });
+        ui.body(clipboard, "Background sending requires Sapphire Helper with its clipboard switch enabled and Shizuku running/authorized. It keeps your current keyboard and stops on disconnect; reboot may require starting Shizuku again.");
+        ui.button(clipboard, "Set up background clipboard", R.drawable.ic_clipboard, false, () -> {
+            try { startActivity(new Intent().setComponent(new ComponentName("dev.sapphire.companion.hotspothelper", "dev.sapphire.helper.HelperActivity"))); }
+            catch (RuntimeException unavailable) { Toast.makeText(this, "Install the matching Sapphire Helper first.", Toast.LENGTH_LONG).show(); }
+        });
+        ui.body(clipboard, "Automatically sends new text copies while Companion is in front, and the latest copy when you return. Android blocks ordinary background clipboard access. Sensitive and Mac-origin copies are skipped.");
+        clipboardSyncStatus = ui.body(clipboard, "");
+        ui.button(clipboard, "Retry background clipboard", R.drawable.ic_arrow, false, () -> {
+            if (LinkService.instance != null) LinkService.instance.backgroundClipboard.retry();
+        });
         ui.button(clipboard, "Send phone clipboard to Mac", R.drawable.ic_arrow, false, () -> {
             if (LinkService.instance != null && LinkService.instance.secure) LinkService.instance.sendClipboardFromActivity();
             else Toast.makeText(this, "Connect to your Mac first.", Toast.LENGTH_SHORT).show();
@@ -250,8 +274,10 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         ui.toggle(handoff, "Receive links from Mac", "handoff", false, () -> {
             if (!getSharedPreferences("settings", 0).getBoolean("handoff", false))
                 getSystemService(NotificationManager.class).cancel("sapphire-link-handoff", 2003);
+            if (!getSharedPreferences("settings", 0).getBoolean("handoff", false))
+                getSystemService(NotificationManager.class).cancel("sapphire-clipboard-link", 2004);
         });
-        ui.body(handoff, "Allow Sapphire notifications to receive links. Tap a notification to review before opening. To send a phone link, use your browser's Share menu → Send link to Mac.");
+        ui.body(handoff, "Allow Sapphire notifications to receive links. Copied Mac text containing a web link offers a notification for about five seconds. Tap to review before opening. To send a phone link, enable automatic phone clipboard sending or use Share → Send link to Mac.");
         LinearLayout phoneActions = ui.card(content, R.color.sapphire_surface, 28);
         ui.cardHeading(phoneActions, R.drawable.ic_devices, "Phone drafts", "Review before you act.");
         ui.toggle(phoneActions, "Receive SMS and dialer drafts", "phoneActions", false, () -> {
@@ -308,7 +334,7 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         LinearLayout about = ui.card(content, R.color.sapphire_surface_variant, 28);
         ui.heading(about, "A little closer. A lot more connected.", 23);
         ui.space(about, 12);
-        ui.body(about, "Bluetooth pairing, battery status, text clipboard, notifications, playback controls, link handoff and hotspot access. File transfer and screen sharing aren't available yet.");
+        ui.body(about, "Bluetooth pairing, battery status, text clipboard, notifications, playback controls, link handoff and hotspot access. One-file receiving and Save are available; screen sharing isn't implemented yet.");
         ui.space(about, 16);
         String version = "";
         try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
@@ -330,6 +356,10 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
     private void refresh() {
         LinkService service = LinkService.instance;
         boolean connected = service != null && service.secure;
+        String clipboardState = service == null ? "off" : service.backgroundClipboard.state;
+        clipboardSyncStatus.setText("ready".equals(clipboardState) ? "Background clipboard is ready." : "needs_setup".equals(clipboardState)
+            ? "Background clipboard needs helper permission/setup. Retry after authorizing Shizuku." : "connecting".equals(clipboardState)
+            ? "Connecting background clipboard…" : "Background clipboard is off.");
         String name = service != null && !service.macName.isEmpty() ? service.macName : savedMacName;
         if (service != null) savedMacName = service.macName;
         status.setText(service == null ? "Start a connection to find your Mac." : service.status);
@@ -452,10 +482,16 @@ public final class MainActivity extends androidx.appcompat.app.AppCompatActivity
         super.onResume();
         LinkService.observers.add(observer);
         main.post(refreshLoop);
+        resumed = true;
+        if (LinkService.instance != null) { LinkService.instance.backgroundClipboard.retry(); }
+        getSystemService(ClipboardManager.class).addPrimaryClipChangedListener(clipboardListener);
+        syncClipboardIfFocused();
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
+        getSystemService(ClipboardManager.class).removePrimaryClipChangedListener(clipboardListener);
         LinkService.observers.remove(observer);
         main.removeCallbacks(refreshLoop);
         super.onPause();

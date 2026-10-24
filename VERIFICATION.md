@@ -242,3 +242,20 @@ was used. Provider validates active run, authority, exact path and write mode;
 non-exported and no URI grants. Release manifest excludes both test components.
 JVM tests, debug/release builds and debug lint passed. This is not a system picker,
 third-party provider, max-size throughput or screen-off-transfer verification.
+
+## Automatic clipboard and copied links — implementation checkpoint
+
+Companion 0.6.0 and Helper 0.2.0 add focus-based clipboard auto-send, optional
+signature-protected Shizuku background broker and copied-link notification code.
+Both debug/release builds, debug lint and all 26 JVM cases pass. Release manifests
+exclude ClipboardFixtureActivity and ClipboardLinkFixtureReceiver.
+
+On Samsung RRCX102WVCZ the notification-only receiver passed production handoff
+with synthetic example.com text: private visibility, review PendingIntent and
+5,000 ms timeout, removal observed by six seconds. It restored handoff preference
+and did not read/write clipboard or open a URL. Unlocked heads-up/tap behaviour
+remains open. The background clipboard probe was blocked by lock before setup;
+no background delivery pass is claimed. Pending fixture activities were cleared,
+and phone returned to sleep. The code probe keeps any original clipboard opaque
+and in memory, restores only its own still-current synthetic copy and original
+helper switch, and is debug-only. Human unlock is pending for that probe.

@@ -338,3 +338,25 @@ Mac harness waits for the asynchronous action result. Debug/release builds, JVM
 tests and debug lint passed. Original receive preference and normal Mac startup
 were restored and the phone verified asleep. Picker UI and external provider
 behaviour remain unverified.
+
+## Automatic clipboard and copied links (0.6.0)
+
+Enable **Automatically send phone clipboard** in Companion. Foreground copies
+(and the latest copy when you return) send without the manual button. Optional
+**Send clipboard while other apps are open** uses Sapphire Helper 0.2.0 with its
+clipboard switch enabled and Shizuku running/authorized; it keeps your keyboard.
+Both sending switches and Helper clipboard access are off by default. Sensitive,
+Mac-origin, rich/URI-only and oversized text copies are skipped.
+
+Mac text containing a web link offers a private Android notification for about
+five seconds when clipboard reception and link handoff are enabled. Tap to review,
+then explicitly open in the browser. Phone copies offer a compact Mac notch
+Open/Dismiss prompt. No link opens automatically. Actual heads-up presentation
+is controlled by Android notification settings/OEM policy.
+
+JVM checks, both apps' debug/release builds and debug lint pass. A real-phone
+notification-only fixture verified private visibility/review intent, 5,000 ms
+timeout and removal by six seconds without touching the clipboard or browser.
+The background clipboard probe could not start while the phone was locked; actual
+background capture and Mac notch/click interaction remain unverified. Unlock and
+reopen Companion/Start connection after installing as needed. See VERIFICATION.md.

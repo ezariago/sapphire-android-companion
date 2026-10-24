@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'dev.sapphire.companion'
     compileSdk 36
-    defaultConfig { applicationId 'dev.sapphire.companion'; minSdk 28; targetSdk 36; versionCode 5; versionName '0.5.0'; testInstrumentationRunner project.hasProperty('uiChecks') ? 'dev.sapphire.companion.UiChecks' : 'dev.sapphire.companion.DeviceChecks' }
+    defaultConfig { applicationId 'dev.sapphire.companion'; minSdk 28; targetSdk 36; versionCode 6; versionName '0.6.0'; testInstrumentationRunner project.hasProperty('uiChecks') ? 'dev.sapphire.companion.UiChecks' : 'dev.sapphire.companion.DeviceChecks' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     testOptions { unitTests.returnDefaultValues = false }
 }

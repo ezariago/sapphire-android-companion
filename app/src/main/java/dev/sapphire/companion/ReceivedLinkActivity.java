@@ -9,6 +9,8 @@ import android.widget.*;
 public final class ReceivedLinkActivity extends androidx.appcompat.app.AppCompatActivity {
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        long expiry = getIntent().getLongExtra("clipboardExpiry", Long.MAX_VALUE);
+        if (expiry != Long.MAX_VALUE && (expiry <= android.os.SystemClock.elapsedRealtime() || expiry - android.os.SystemClock.elapsedRealtime() > 5000)) { finish(); return; }
         String url = HandoffPolicy.url(getIntent().getDataString());
         if (url == null || !getSharedPreferences("settings", 0).getBoolean("handoff", false)) { finish(); return; }
         SapphireUi ui = new SapphireUi(this);
@@ -20,6 +22,7 @@ public final class ReceivedLinkActivity extends androidx.appcompat.app.AppCompat
         text.setTextIsSelectable(true);
         Button open = ui.button(content, "Open in browser", R.drawable.ic_arrow, true, () -> {});
         open.setOnClickListener(v -> {
+            if (!getSharedPreferences("settings", 0).getBoolean("handoff", false)) { finish(); return; }
             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)); finish(); }
             catch (RuntimeException unavailable) { Toast.makeText(this, "No browser is available for this link.", Toast.LENGTH_LONG).show(); }
         });

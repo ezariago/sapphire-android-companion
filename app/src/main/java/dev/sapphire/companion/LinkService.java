@@ -80,6 +80,7 @@ public final class LinkService extends Service {
     private String lastMediaPayload = "";
     private PhoneMedia media;
     private PhoneHandoff handoff;
+    BackgroundClipboard backgroundClipboard;
     PhoneActions phoneActions;
     private PhoneFileTransfers files;
     private long lastStatusSent;
@@ -131,6 +132,7 @@ public final class LinkService extends Service {
         }
         media = new PhoneMedia(this);
         handoff = new PhoneHandoff(this);
+        backgroundClipboard = new BackgroundClipboard(this);
         phoneActions = new PhoneActions(this);
         files = PhoneFileTransfers.get(this);
         manager = getSystemService(BluetoothManager.class);
@@ -369,9 +371,10 @@ public final class LinkService extends Service {
 
     private void resetConnection() {
         epoch++;
-        secure = false;
+        secure = false; lastClipboardTimestamp = Long.MIN_VALUE; lastClipboardDigest = "";
         if (media != null) media.reset();
         if (handoff != null) handoff.reset();
+        if (backgroundClipboard != null) backgroundClipboard.stop();
         if (phoneActions != null) phoneActions.reset();
         if (files != null) files.reset();
         lastMediaPayload = "";
@@ -547,6 +550,7 @@ public final class LinkService extends Service {
                         extras.putBoolean("dev.sapphire.fromMac", true);
                         clip.getDescription().setExtras(extras);
                         getSystemService(ClipboardManager.class).setPrimaryClip(clip);
+                        if (handoff != null) handoff.copiedText(text);
                     }
                 }
                 break;
@@ -607,6 +611,7 @@ public final class LinkService extends Service {
     private final Runnable maintenance = new Runnable() {
         public void run() {
             if (files != null) files.tick();
+            if (backgroundClipboard != null) backgroundClipboard.refresh();
             if (!hasBluetoothPermissions()) {
                 if (server != null || secure || pairingMode) permissionDenied();
                 main.postDelayed(this, 2000);
@@ -680,10 +685,18 @@ public final class LinkService extends Service {
         }
     }
 
-    void sendClipboardFromActivity() {
+    private long lastClipboardTimestamp = Long.MIN_VALUE;
+    private String lastClipboardDigest = "";
+    void sendClipboardAutomatically() {
+        if (!getSharedPreferences("settings", 0).getBoolean("sendClipboard", false)) return;
+        sendClipboardFromActivity(true);
+    }
+    void sendClipboardFromActivity() { sendClipboardFromActivity(false); }
+    private void sendClipboardFromActivity(boolean automatic) {
         if (!secure) return;
         ClipboardManager clipboard = getSystemService(ClipboardManager.class);
-        ClipData clip = clipboard.getPrimaryClip();
+        ClipData clip;
+        try { clip = clipboard.getPrimaryClip(); } catch (SecurityException unavailable) { return; }
         if (clip == null || clip.getItemCount() != 1) return;
         PersistableBundle extras = clip.getDescription().getExtras();
         if (extras != null && (extras.getBoolean("android.content.extra.IS_SENSITIVE", false) || extras.getBoolean("dev.sapphire.fromMac", false)))
@@ -691,8 +704,18 @@ public final class LinkService extends Service {
         CharSequence value = clip.getItemAt(0).getText();
         if (value == null) return;
         String text = value.toString();
-        if (!text.isEmpty() && LinkCrypto.utf8(text).length < 12000)
+        sendClipboardText(text, clip.getDescription().getTimestamp(), automatic);
+    }
+    void sendClipboardText(String text, long timestamp, boolean automatic) {
+        if (!secure || (automatic && !getSharedPreferences("settings", 0).getBoolean("sendClipboard", false))) return;
+        if (ClipboardTextPolicy.accepts(text, 1, false, false)) {
+            String digest;
+            try { digest = android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(LinkCrypto.utf8(text)), android.util.Base64.NO_WRAP); }
+            catch (java.security.NoSuchAlgorithmException unavailable) { return; }
+            if (automatic && timestamp == lastClipboardTimestamp && digest.equals(lastClipboardDigest)) return;
             send("clipboard.update", object("contentType", "text", "text", text), false);
+            lastClipboardTimestamp = timestamp; lastClipboardDigest = digest;
+        }
     }
 
     private void setHotspot(boolean enabled) {
@@ -840,6 +863,7 @@ public final class LinkService extends Service {
         closeBluetooth();
         for (ServiceConnection c : new ArrayList<>(helperConnections)) release(c);
         secure = false;
+        if (backgroundClipboard != null) backgroundClipboard.stop();
         notificationSubscribed = false;
         if (NotificationMirror.instance != null) NotificationMirror.instance.configure(false, false, false);
         instance = null;

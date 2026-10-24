@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <receiver android:name=".ClipboardLinkFixtureReceiver" android:exported="true" />
         <provider android:name=".FileTransferFixtureProvider" android:authorities="dev.sapphire.companion.filefixture" android:exported="false" android:grantUriPermissions="false" />
         <activity android:name=".FileTransferFixtureActivity" android:exported="true" android:label="Sapphire synthetic file transfer test" />
         <activity android:name=".HandoffFixtureActivity" android:exported="true" android:label="Sapphire link handoff test" />

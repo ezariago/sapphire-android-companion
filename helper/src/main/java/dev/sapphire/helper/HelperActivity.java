@@ -22,7 +22,7 @@ public final class HelperActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(32, 72, 32, 32);
         TextView title = new TextView(this);
-        title.setText("Hotspot Helper");
+        title.setText("Sapphire Helper");
         title.setTextSize(30);
         content.addView(title);
         TextView explanation = new TextView(this);
@@ -31,8 +31,19 @@ public final class HelperActivity extends Activity {
         content.addView(explanation);
         status = new TextView(this);
         content.addView(status);
+        Switch clipboard = new Switch(this);
+        clipboard.setText("Allow background clipboard for Sapphire");
+        clipboard.setChecked(getSharedPreferences("helper", 0).getBoolean("clipboard", false));
+        clipboard.setOnCheckedChangeListener((button, enabled) -> {
+            getSharedPreferences("helper", 0).edit().putBoolean("clipboard", enabled).apply();
+            if (!enabled) stopService(new Intent(this, ClipboardService.class));
+        });
+        content.addView(clipboard);
+        TextView clipboardInfo = new TextView(this);
+        clipboardInfo.setText("Optional: reads new plain-text copies while unlocked and sends them only to your matching Companion and paired Mac. Sensitive and Mac-origin copies are skipped. No clipboard history is stored. Enable phone clipboard sending in Companion too. Shizuku must run as shell; root mode is unsupported.");
+        content.addView(clipboardInfo);
         Button authorize = new Button(this);
-        authorize.setText("Authorize hotspot control");
+        authorize.setText("Authorize Shizuku access");
         authorize.setOnClickListener(v -> {
             try {
                 if (!Shizuku.pingBinder())
