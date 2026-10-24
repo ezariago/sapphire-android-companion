@@ -29,7 +29,7 @@ final class PhoneStatus {
             TelephonyManager radio = context.getSystemService(TelephonyManager.class);
             int subscription = SubscriptionManager.getDefaultDataSubscriptionId();
             if (radio != null) {
-                if (SubscriptionManager.isValidSubscriptionId(subscription)) radio = radio.createForSubscriptionId(subscription);
+                if (subscription >= 0) radio = radio.createForSubscriptionId(subscription);
                 String carrier = radio.getNetworkOperatorName();
                 if (carrier != null && !carrier.trim().isEmpty()) result.put("carrier", carrier.trim());
                 SignalStrength signal = radio.getSignalStrength();

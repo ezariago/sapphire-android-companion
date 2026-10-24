@@ -19,7 +19,7 @@ public final class HelperActivity extends Activity {
     public void onCreate(Bundle saved) {
         super.onCreate(saved);
         LinearLayout content = new LinearLayout(this);
-        content.setOrientation(1);
+        content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(32, 72, 32, 32);
         TextView title = new TextView(this);
         title.setText("Hotspot Helper");

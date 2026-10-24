@@ -21,7 +21,7 @@ public final class NotificationFixtureActivity extends Activity {
             return;
         }
         LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(1); layout.setPadding(28, 36, 28, 28);
+        layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(28, 36, 28, 28);
         TextView text = new TextView(this);
         text.setText("Synthetic Sapphire notification test. Replies and actions stay in this fixture app; no real messages are sent.");
         layout.addView(text);

@@ -94,12 +94,19 @@ public final class LinkService extends Service {
     private IHotspotHelper helper;
     private boolean helperBound;
     private final Set<ServiceConnection> helperConnections = new HashSet<>();
-    private final AdvertiseCallback advertising = new AdvertiseCallback() {
-        @Override
-        public void onStartFailure(int error) {
-            main.post(() -> setStatus("Bluetooth advertising failed. Turn Bluetooth on and retry (" + error + ")."));
-        }
-    };
+    private AdvertiseCallback advertising;
+    private AdvertiseCallback advertisementCallback(final int generation) {
+        return new AdvertiseCallback() {
+            @Override public void onStartFailure(int error) {
+                main.post(() -> {
+                    if (destroyed || generation != bluetoothGeneration || advertising != this) return;
+                    closeBluetooth();
+                    clearPairing();
+                    setStatus("Bluetooth advertising failed. Retry Start connection (" + error + ").");
+                });
+            }
+        };
+    }
 
     @Override
     public void onCreate() {
@@ -107,7 +114,8 @@ public final class LinkService extends Service {
         instance = this;
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("phone-link", "Mac connection", NotificationManager.IMPORTANCE_LOW));
-        startForeground(1, notification("Starting Bluetooth…"));
+        try { startForeground(1, notification("Starting Bluetooth…")); }
+        catch (SecurityException denied) { destroyed = true; setStatus("Allow Nearby devices permission before starting the connection."); stopSelf(); return; }
         store = new PairingStore(this);
         try {
             record = store.load();
@@ -168,15 +176,45 @@ public final class LinkService extends Service {
         bluetoothGeneration++;
         BluetoothGattServer previous = server;
         server = null; serviceReady = false; outbox = null;
-        try { if (advertiser != null) advertiser.stopAdvertising(advertising); } catch (RuntimeException ignored) { }
-        advertiser = null;
-        try { if (previous != null) previous.close(); } catch (RuntimeException ignored) { }
+        try { if (advertiser != null && advertising != null) advertiser.stopAdvertising(advertising); } catch (SecurityException revoked) { } catch (RuntimeException ignored) { }
+        advertiser = null; advertising = null;
+        try { if (previous != null) previous.close(); } catch (SecurityException revoked) { } catch (RuntimeException ignored) { }
         resetConnection(); peer = null;
         trace("Bluetooth transport retired");
     }
 
+    private boolean hasBluetoothPermissions() {
+        return Build.VERSION.SDK_INT < 31 || (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED);
+    }
+
+    private void permissionDenied() {
+        closeBluetooth();
+        clearPairing();
+        setStatus("Allow Nearby devices permission, then tap Start connection. Saved Mac pairing is retained.");
+    }
+
+    private void cancelConnection(BluetoothDevice device) {
+        if (server == null || device == null) return;
+        try { server.cancelConnection(device); }
+        catch (SecurityException denied) { permissionDenied(); }
+        catch (RuntimeException unavailable) { if (device.equals(peer)) resetConnection(); }
+    }
+
+    private boolean respond(BluetoothDevice device, int requestId, int status, int offset, byte[] value) {
+        if (server == null) return false;
+        try {
+            boolean sent = server.sendResponse(device, requestId, status, offset, value);
+            if (!sent && device.equals(peer)) protocolFailure();
+            return sent;
+        } catch (SecurityException denied) { permissionDenied(); }
+        catch (RuntimeException unavailable) { if (device.equals(peer)) protocolFailure(); }
+        return false;
+    }
+
     private void openBluetooth() {
         if (destroyed || server != null) return;
+        if (!hasBluetoothPermissions()) { permissionDenied(); return; }
         try {
             if (manager == null || manager.getAdapter() == null || !manager.getAdapter().isEnabled()) {
                 setStatus("Turn on Bluetooth, then tap Start connection.");
@@ -191,33 +229,47 @@ public final class LinkService extends Service {
             service.addCharacteristic(outbox);
             service.addCharacteristic(new BluetoothGattCharacteristic(CONTROL, BluetoothGattCharacteristic.PROPERTY_WRITE, BluetoothGattCharacteristic.PERMISSION_WRITE));
             if (!server.addService(service)) throw new IllegalStateException();
+        } catch (SecurityException denied) {
+            permissionDenied();
         } catch (Exception e) {
+            closeBluetooth();
             setStatus("Bluetooth could not start. Check Nearby devices permission and try again.");
         }
     }
 
     private void advertise() {
         if (!serviceReady || manager == null) return;
+        if (!hasBluetoothPermissions()) { permissionDenied(); return; }
         try {
-            if (advertiser != null) advertiser.stopAdvertising(advertising);
+            if (advertiser != null && advertising != null) advertiser.stopAdvertising(advertising);
             advertiser = manager.getAdapter().getBluetoothLeAdvertiser();
             if (advertiser == null) throw new IllegalStateException();
             byte[] manufacturer = LinkCrypto.concat(new byte[]{1, 1}, Arrays.copyOf(LinkCrypto.hash(LinkCrypto.utf8(deviceID)), 8), new byte[]{0, 0, (byte) battery(), (byte) (pairingMode ? 1 : 0)});
             AdvertiseData data = new AdvertiseData.Builder().addServiceUuid(new ParcelUuid(SERVICE)).build();
             AdvertiseData response = new AdvertiseData.Builder().addManufacturerData(0xffff, manufacturer).build();
+            advertising = advertisementCallback(bluetoothGeneration);
             advertiser.startAdvertising(new AdvertiseSettings.Builder().setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY).setConnectable(true).setTimeout(0).build(), data, response, advertising);
             if (peer == null)
                 setStatus(pairingMode ? "Ready to pair. Scan or paste the Mac’s QR code." : record == null ? "Tap Pair a Mac to begin." : "Waiting for " + macName + "…");
+        } catch (SecurityException denied) {
+            permissionDenied();
         } catch (Exception e) {
+            closeBluetooth();
             setStatus("Could not advertise over Bluetooth. Turn Bluetooth on and retry.");
         }
+    }
+
+    private boolean currentTransport(int generation) {
+        if (destroyed || generation != bluetoothGeneration || server == null) return false;
+        if (!hasBluetoothPermissions()) { permissionDenied(); return false; }
+        return true;
     }
 
     private BluetoothGattServerCallback gatt(final int generation) { return new BluetoothGattServerCallback() {
         @Override
         public void onServiceAdded(int status, BluetoothGattService service) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 serviceReady = status == BluetoothGatt.GATT_SUCCESS;
                 if (serviceReady) advertise();
                 else setStatus("Bluetooth service setup failed.");
@@ -227,10 +279,10 @@ public final class LinkService extends Service {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int state) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 if (state == BluetoothProfile.STATE_CONNECTED) {
                     if (peer != null && !peer.equals(device)) {
-                        server.cancelConnection(device);
+                        cancelConnection(device);
                         return;
                     }
                     resetConnection();
@@ -248,7 +300,7 @@ public final class LinkService extends Service {
         @Override
         public void onMtuChanged(BluetoothDevice device, int value) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 if (device.equals(peer)) mtu = Math.max(23, Math.min(517, value));
             });
         }
@@ -257,10 +309,9 @@ public final class LinkService extends Service {
         public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean prepared, boolean response, int offset, byte[] value) {
             byte[] copy = value.clone();
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 boolean allowed = device.equals(peer) && !prepared && offset == 0 && (characteristic.getUuid().equals(INBOX) || characteristic.getUuid().equals(CONTROL));
-                if (response)
-                    server.sendResponse(device, requestId, allowed ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
+                if (response && !respond(device, requestId, allowed ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null)) return;
                 if (allowed) try {
                     byte[] data = frames.accept(copy, SystemClock.elapsedRealtime());
                     if (data != null) receive(data);
@@ -273,13 +324,12 @@ public final class LinkService extends Service {
         @Override
         public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean prepared, boolean response, int offset, byte[] value) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 boolean valid = device.equals(peer) && descriptor.getUuid().equals(CCC) && !prepared && offset == 0 && (Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE) || Arrays.equals(value, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE));
                 if (valid)
                     subscribed = Arrays.equals(value, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
                 trace("Subscription valid=" + valid + " enabled=" + subscribed);
-                if (response)
-                    server.sendResponse(device, requestId, valid ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
+                if (response && !respond(device, requestId, valid ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null)) return;
                 if (valid && subscribed) drain();
             });
         }
@@ -287,23 +337,23 @@ public final class LinkService extends Service {
         @Override
         public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
-                server.sendResponse(device, requestId, device.equals(peer) && offset == 0 ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, subscribed ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                if (!currentTransport(generation)) return;
+                respond(device, requestId, device.equals(peer) && offset == 0 ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, subscribed ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
             });
         }
 
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
-                server.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
+                if (!currentTransport(generation)) return;
+                respond(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, 0, null);
             });
         }
 
         @Override
         public void onNotificationSent(BluetoothDevice device, int status) {
             main.post(() -> {
-                if (destroyed || generation != bluetoothGeneration || server == null) return;
+                if (!currentTransport(generation)) return;
                 if (!device.equals(peer)) return;
                 notificationPending = false;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -338,12 +388,12 @@ public final class LinkService extends Service {
 
     private void protocolFailure() {
         setStatus("The Mac connection was interrupted or could not be verified. Reconnect or start pairing again.");
-        if (peer != null && server != null) server.cancelConnection(peer);
+        if (peer != null && server != null) cancelConnection(peer);
         resetConnection();
     }
 
     private void drain() {
-        if (peer == null || !subscribed || notificationPending || outgoing.isEmpty()) return;
+        if (server == null || outbox == null || peer == null || !subscribed || notificationPending || outgoing.isEmpty()) return;
         byte[] chunk = outgoing.removeFirst();
         notificationPending = true;
         try {
@@ -358,6 +408,9 @@ public final class LinkService extends Service {
                 notificationPending = false;
                 protocolFailure();
             }
+        } catch (SecurityException denied) {
+            notificationPending = false;
+            permissionDenied();
         } catch (Exception e) {
             notificationPending = false;
             protocolFailure();
@@ -541,6 +594,11 @@ public final class LinkService extends Service {
 
     private final Runnable maintenance = new Runnable() {
         public void run() {
+            if (!hasBluetoothPermissions()) {
+                if (server != null || secure || pairingMode) permissionDenied();
+                main.postDelayed(this, 2000);
+                return;
+            }
             if (pairingMode && qr != null) {
                 if (SystemClock.elapsedRealtime() > pairingExpires) {
                     clearPairing();
@@ -549,7 +607,7 @@ public final class LinkService extends Service {
                 } else pairHello();
             }
             if (peer != null && SystemClock.elapsedRealtime() - lastReceived > 90000) {
-                if (server != null) server.cancelConnection(peer);
+                if (server != null) cancelConnection(peer);
                 resetConnection();
                 peer = null;
                 advertise();
@@ -561,7 +619,8 @@ public final class LinkService extends Service {
     };
 
     private void beginPairing() {
-        if (peer != null) server.cancelConnection(peer);
+        if (!hasBluetoothPermissions()) { permissionDenied(); return; }
+        if (peer != null) cancelConnection(peer);
         resetConnection();
         peer = null;
         clearPairing();
@@ -729,6 +788,7 @@ public final class LinkService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int id) {
+        if (destroyed) return START_NOT_STICKY;
         if (intent != null) {
             String action = intent.getAction();
             if ("pair".equals(action)) beginPairing();
@@ -738,7 +798,7 @@ public final class LinkService extends Service {
                 send("pair.confirm", object("sas", code), true);
                 setStatus("Phone confirmed. Confirm the matching code on your Mac.");
             } else if ("forget".equals(action)) {
-                if (peer != null) server.cancelConnection(peer);
+                if (peer != null) cancelConnection(peer);
                 resetConnection();
                 peer = null;
                 store.clear();

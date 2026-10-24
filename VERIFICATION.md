@@ -160,3 +160,22 @@ generated source directory before compiling; it does not replace production code
 with hand-maintained copies. Native notification/review UI, actual encrypted draft
 routing and system composer/dialer presentation remain unverified. The normal
 companion APK was built, not installed by the isolated test.
+
+
+## 24 October — Bluetooth permission/API compatibility source checks
+
+Debug lint exposed existing unguarded Bluetooth callback calls and an API-29
+subscription check in an app declaring API 28 support. The service now checks
+current permission state, catches SecurityException at the actual Bluetooth
+operations, retires transient session/draft state on denial and guards callbacks
+with transport generation. Failed responses stop frame processing; unrelated
+peer response failures do not retire the active peer. Advertising callbacks are
+bound to their generation and identity. Partial startup/advertising failures
+close resources so a later Start can retry. Saved pairing storage is retained.
+
+All three debug lint tasks (app, helper, isolated fixture), JVM tests and app/
+helper debug APK builds passed without adding lint suppressions. Existing warnings
+remain. The API-28 subscription check and fixture/helper orientation constants
+were corrected. No actual permission, Bluetooth radio, wake/notification/alarm
+setting or pairing was changed on the phone for these checks. Native permission
+revocation/regrant and vendor callback/recovery behavior remain unverified.
